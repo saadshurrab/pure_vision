@@ -1,6 +1,3 @@
-import { useState } from 'react';
-import { ClientsList } from '@/components/ClientsList';
-import { OrdersHistory } from '@/components/OrdersHistory';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   supabase,
@@ -23,6 +20,8 @@ import { SphMatrix, type CustomPrescription } from '@/components/SphMatrix';
 import { AdditionalItems } from '@/components/AdditionalItems';
 import { Cart } from '@/components/Cart';
 import { OrderConfirmationModal, type OrderSummary } from '@/components/OrderConfirmationModal';
+import { ClientsList } from '@/components/ClientsList';
+import { OrdersHistory } from '@/components/OrdersHistory';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'new-order' | 'orders-history' | 'clients'>('new-order');
@@ -51,39 +50,41 @@ export default function App() {
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [c, l, p, ls] = await Promise.all([
-          supabase.from('clients').select('*').eq('active', true).order('name'),
-          supabase.from('lens_products').select('*').eq('active', true).order('brand'),
-          supabase.from('products').select('*').eq('active', true).order('category, name'),
-          supabase.from('lens_stock').select('*'),
-        ]);
+  const loadData = useCallback(async () => {
+    try {
+      const [c, l, p, ls] = await Promise.all([
+        supabase.from('clients').select('*').eq('active', true).order('name'),
+        supabase.from('lens_products').select('*').eq('active', true).order('brand'),
+        supabase.from('products').select('*').eq('active', true).order('category, name'),
+        supabase.from('lens_stock').select('*'),
+      ]);
 
-        if (c.error) throw c.error;
-        if (l.error) throw l.error;
-        if (p.error) throw p.error;
-        if (ls.error) throw ls.error;
+      if (c.error) throw c.error;
+      if (l.error) throw l.error;
+      if (p.error) throw p.error;
+      if (ls.error) throw ls.error;
 
-        setClients(c.data || []);
-        setLensProducts(l.data || []);
-        setProducts(p.data || []);
-        setLensStock(ls.data || []);
+      setClients(c.data || []);
+      setLensProducts(l.data || []);
+      setProducts(p.data || []);
+      setLensStock(ls.data || []);
 
-        if (l.data && l.data.length > 0) {
-          const first = l.data[0];
-          setSelectedLensId(first.id);
-          setSelectedBC(first.bc);
-          setSelectedDIA(first.dia);
-        }
-      } catch (e) {
-        setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-      } finally {
-        setLoading(false);
+      if (l.data && l.data.length > 0 && !selectedLensId) {
+        const first = l.data[0];
+        setSelectedLensId(first.id);
+        setSelectedBC(first.bc);
+        setSelectedDIA(first.dia);
       }
-    })();
-  }, []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLensId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const selectedClient = useMemo(
     () => clients.find((c) => c.id === selectedClientId) || null,
@@ -147,7 +148,6 @@ export default function App() {
     return m;
   }, [lensStock]);
 
-  // Sync lens quantities into cart
   useEffect(() => {
     if (!selectedLens) return;
 
@@ -427,90 +427,7 @@ export default function App() {
     });
     clearCart();
   }
-async function reloadClients() {
-    const c = await supabase.from('clients').select('*').eq('active', true).order('name');
-    if (c.data) setClients(c.data);
-  }
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      <Header />
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
-        
-        {/* شريط التنقل بين التبويبات */}
-        <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
-          <button
-            onClick={() => setActiveTab('new-order')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'new-order'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            🛒 إنشاء طلب جديد
-          </button>
-          <button
-            onClick={() => setActiveTab('orders-history')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'orders-history'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            📋 سجل الطلبات
-          </button>
-          <button
-            onClick={() => setActiveTab('clients')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'clients'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            👥 دليل العملاء
-          </button>
-        </div>
-
-        {/* عرض المحتوى بحسب التبويب النشط */}
-        {activeTab === 'new-order' && (
-          <>
-            <ClientSelector
-              clients={clients}
-              selectedClientId={selectedClientId}
-              onSelect={setSelectedClientId}
-            />
-
-            {selectedClient && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <SphMatrix
-                    // ... الخصائص كما هي
-                  />
-                  <AdditionalItems products={products} onAdd={addProduct} />
-                </div>
-                <div className="lg:col-span-1">
-                  <Cart
-                    // ... الخصائص كما هي
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === 'orders-history' && <OrdersHistory />}
-
-        {activeTab === 'clients' && <ClientsList clients={clients} onClientAdded={reloadClients} />}
-      </main>
-
-      <OrderConfirmationModal
-        summary={orderSummary}
-        onClose={() => setOrderSummary(null)}
-        onPrint={printInvoice}
-      />
-    </div>
-  );
-}
   async function handleSaveInvoice() {
     if (!selectedClient) return;
     const result = await persistOrder('confirmed');
@@ -691,70 +608,113 @@ async function reloadClients() {
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
       <Header />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
-        <ClientSelector
-          clients={clients}
-          selectedClientId={selectedClientId}
-          onSelect={setSelectedClientId}
-        />
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
+          <button
+            onClick={() => setActiveTab('new-order')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'new-order'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            🛒 إنشاء طلب جديد
+          </button>
+          <button
+            onClick={() => setActiveTab('orders-history')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'orders-history'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            📋 سجل الطلبات
+          </button>
+          <button
+            onClick={() => setActiveTab('clients')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'clients'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            👥 دليل العملاء
+          </button>
+        </div>
 
-        {selectedClient && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-            <div className="lg:col-span-2 space-y-6">
-              <SphMatrix
-                lensProducts={lensProducts}
-                selectedLensId={selectedLensId}
-                onSelectLens={handleSelectLens}
-                quantities={lensQuantities}
-                onSetQty={setLensQty}
-                onClear={clearLensGrid}
-                stockMap={stockMap}
-                sphSign={sphSign}
-                onSphSignChange={setSphSign}
-                selectedBC={selectedBC}
-                selectedDIA={selectedDIA}
-                onBCChange={handleBCChange}
-                onDIAChange={setSelectedDIA}
-                availableBCs={availableBCs}
-                availableDIAs={availableDIAs}
-                isToric={isToric}
-                onToricChange={setIsToric}
-                selectedCYL={selectedCYL}
-                selectedAXIS={selectedAXIS}
-                onCYLChange={setSelectedCYL}
-                onAXISChange={setSelectedAXIS}
-                customPrescription={customPrescription}
-                onCustomPrescriptionChange={setCustomPrescription}
-                onAddCustomPrescription={addCustomPrescription}
-              />
-              <AdditionalItems products={products} onAdd={addProduct} />
-            </div>
-            <div className="lg:col-span-1">
-              <Cart
-                cart={cart}
-                subtotal={subtotal}
-                discountPercent={discountPercent}
-                discountAmount={discountAmount}
-                total={total}
-                availableCredit={availableCredit}
-                creditExceeded={creditExceeded}
-                client={selectedClient}
-                notes={notes}
-                paymentMethod={paymentMethod}
-                onDiscountChange={setDiscountPercent}
-                onNotesChange={setNotes}
-                onPaymentChange={setPaymentMethod}
-                onQtyChange={updateCartQty}
-                onRemove={removeCartItem}
-                onClear={clearCart}
-                onSaveInvoice={handleSaveInvoice}
-                onSaveDraft={handleSaveDraft}
-                onSaveOrder={handleSaveOrder}
-                saving={saving}
-                saveMsg={saveMsg}
-              />
-            </div>
-          </div>
+        {/* View tab content */}
+        {activeTab === 'new-order' && (
+          <>
+            <ClientSelector
+              clients={clients}
+              selectedClientId={selectedClientId}
+              onSelect={setSelectedClientId}
+            />
+
+            {selectedClient && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <SphMatrix
+                    lensProducts={lensProducts}
+                    selectedLensId={selectedLensId}
+                    onSelectLens={handleSelectLens}
+                    quantities={lensQuantities}
+                    onSetQty={setLensQty}
+                    onClear={clearLensGrid}
+                    stockMap={stockMap}
+                    sphSign={sphSign}
+                    onSphSignChange={setSphSign}
+                    selectedBC={selectedBC}
+                    selectedDIA={selectedDIA}
+                    onBCChange={handleBCChange}
+                    onDIAChange={setSelectedDIA}
+                    availableBCs={availableBCs}
+                    availableDIAs={availableDIAs}
+                    isToric={isToric}
+                    onToricChange={setIsToric}
+                    selectedCYL={selectedCYL}
+                    selectedAXIS={selectedAXIS}
+                    onCYLChange={setSelectedCYL}
+                    onAXISChange={setSelectedAXIS}
+                    customPrescription={customPrescription}
+                    onCustomPrescriptionChange={setCustomPrescription}
+                    onAddCustomPrescription={addCustomPrescription}
+                  />
+                  <AdditionalItems products={products} onAdd={addProduct} />
+                </div>
+                <div className="lg:col-span-1">
+                  <Cart
+                    cart={cart}
+                    subtotal={subtotal}
+                    discountPercent={discountPercent}
+                    discountAmount={discountAmount}
+                    total={total}
+                    availableCredit={availableCredit}
+                    creditExceeded={creditExceeded}
+                    client={selectedClient}
+                    notes={notes}
+                    paymentMethod={paymentMethod}
+                    onDiscountChange={setDiscountPercent}
+                    onNotesChange={setNotes}
+                    onPaymentChange={setPaymentMethod}
+                    onQtyChange={updateCartQty}
+                    onRemove={removeCartItem}
+                    onClear={clearCart}
+                    onSaveInvoice={handleSaveInvoice}
+                    onSaveDraft={handleSaveDraft}
+                    onSaveOrder={handleSaveOrder}
+                    saving={saving}
+                    saveMsg={saveMsg}
+                  />
+                </div>
+              </div>
+            )}
+          </>
         )}
+
+        {activeTab === 'orders-history' && <OrdersHistory />}
+
+        {activeTab === 'clients' && <ClientsList clients={clients} onClientAdded={loadData} />}
       </main>
 
       <OrderConfirmationModal

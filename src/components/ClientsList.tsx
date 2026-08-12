@@ -15,13 +15,16 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   const [code, setCode] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
-  const [creditLimit, setCreditLimit] = useState(1000);
 
-  // حالات الدفع (واصل)
+  // حالات التسديد
   const [payAmount, setPayAmount] = useState<number>(0);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // إحصائيات عامة
+  const totalDebtSum = clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
+  const totalPaidSum = clients.reduce((sum, c) => sum + (c.total_paid || 0), 0);
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
@@ -39,8 +42,8 @@ export function ClientsList({ clients, onClientAdded }: Props) {
         code,
         city: city || null,
         phone: phone || null,
-        credit_limit: creditLimit,
         outstanding_balance: 0,
+        total_paid: 0,
         active: true,
       });
 
@@ -51,7 +54,6 @@ export function ClientsList({ clients, onClientAdded }: Props) {
       setCode('');
       setCity('');
       setPhone('');
-      setCreditLimit(1000);
       onClientAdded();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'حدث خطأ أثناء إضافة العميل');
@@ -60,7 +62,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     }
   }
 
-  // تسجيل دفعة واصل وتصفير/تخفيض الدين
+  // تسجيل عملية تسديد (واصل)
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!showPayModal || payAmount <= 0) return;
@@ -69,103 +71,129 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     setError(null);
 
     try {
-      const currentBalance = showPayModal.outstanding_balance;
+      const currentBalance = showPayModal.outstanding_balance || 0;
+      const currentTotalPaid = showPayModal.total_paid || 0;
+
+      // خصم من الدين وتزويد إجمالي المدفوعات التراكمي
       const newBalance = Math.max(0, currentBalance - payAmount);
+      const newTotalPaid = currentTotalPaid + payAmount;
 
       const { error: err } = await supabase
         .from('clients')
-        .update({ outstanding_balance: newBalance })
+        .update({
+          outstanding_balance: Math.round(newBalance * 100) / 100,
+          total_paid: Math.round(newTotalPaid * 100) / 100,
+        })
         .eq('id', showPayModal.id);
 
       if (err) throw err;
 
       setShowPayModal(null);
       setPayAmount(0);
-      onClientAdded(); // إعادة تحميل بيانات العملاء
+      onClientAdded(); // تحديث الجدول
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'حدث خطأ أثناء تسديد المبلغ');
+      setError(e instanceof Error ? e.message : 'حدث خطأ أثناء التسديد');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">دليل العملاء</h2>
-          <p className="text-sm text-slate-500">إدارة وعرض رصيد وحد الائتمان للعملاء</p>
+    <div className="space-y-6">
+      {/* بطاقات ملخص الإحصائيات */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex justify-between items-center">
+          <div>
+            <p className="text-sm font-medium text-red-600">إجمالي الديون القائمة (المستحقة)</p>
+            <h3 className="text-2xl font-bold text-red-700 mt-1">{formatILS(totalDebtSum)}</h3>
+          </div>
+          <span className="text-3xl">📉</span>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm"
-        >
-          + إضافة عميل جديد
-        </button>
+
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex justify-between items-center">
+          <div>
+            <p className="text-sm font-medium text-emerald-600">إجمالي المدفوعات التراكمية (الواصل)</p>
+            <h3 className="text-2xl font-bold text-emerald-700 mt-1">{formatILS(totalPaidSum)}</h3>
+          </div>
+          <span className="text-3xl">💰</span>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-right border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-              <th className="p-3">الكود</th>
-              <th className="p-3">اسم العميل</th>
-              <th className="p-3">المدينة</th>
-              <th className="p-3">رقم الهاتف</th>
-              <th className="p-3">حد الائتمان</th>
-              <th className="p-3">إجمالي الدين</th>
-              <th className="p-3">الرصيد المتبقي</th>
-              <th className="p-3 text-center">العملية / تسديد</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {clients.map((c) => {
-              const available = c.credit_limit - c.outstanding_balance;
-              const hasDebt = c.outstanding_balance > 0;
-              return (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="p-3 font-mono text-slate-500">{c.code}</td>
-                  <td className="p-3 font-semibold text-slate-800">{c.name}</td>
-                  <td className="p-3 text-slate-600">{c.city || '—'}</td>
-                  <td className="p-3 text-slate-600">{c.phone || '—'}</td>
-                  <td className="p-3">{formatILS(c.credit_limit)}</td>
-                  <td className={`p-3 font-semibold ${hasDebt ? 'text-red-600' : 'text-slate-500'}`}>
-                    {formatILS(c.outstanding_balance)}
-                  </td>
-                  <td className={`p-3 font-semibold ${available < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {formatILS(available)}
-                  </td>
-                  <td className="p-3 text-center">
-                    {hasDebt ? (
-                      <button
-                        onClick={() => {
-                          setShowPayModal(c);
-                          setPayAmount(c.outstanding_balance);
-                        }}
-                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto"
-                      >
-                        ✅ 💰 تسديد (واصل)
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-                        خالي من الديون ✨
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* جدول العملاء */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">دليل العملاء</h2>
+            <p className="text-sm text-slate-500">متابعة إجمالي الديون وإجمالي المبالغ المسددة (الواصل)</p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm"
+          >
+            + إضافة عميل جديد
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                <th className="p-3">الكود</th>
+                <th className="p-3">اسم العميل</th>
+                <th className="p-3">المدينة</th>
+                <th className="p-3">رقم الهاتف</th>
+                <th className="p-3">إجمالي الدين</th>
+                <th className="p-3">إجمالي المدفوعات (الواصل)</th>
+                <th className="p-3 text-center">العملية / تسديد</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {clients.map((c) => {
+                const hasDebt = (c.outstanding_balance || 0) > 0;
+                return (
+                  <tr key={c.id} className="hover:bg-slate-50">
+                    <td className="p-3 font-mono text-slate-500">{c.code}</td>
+                    <td className="p-3 font-semibold text-slate-800">{c.name}</td>
+                    <td className="p-3 text-slate-600">{c.city || '—'}</td>
+                    <td className="p-3 text-slate-600">{c.phone || '—'}</td>
+                    <td className={`p-3 font-semibold ${hasDebt ? 'text-red-600' : 'text-slate-400'}`}>
+                      {formatILS(c.outstanding_balance || 0)}
+                    </td>
+                    <td className="p-3 font-bold text-emerald-600">
+                      {formatILS(c.total_paid || 0)}
+                    </td>
+                    <td className="p-3 text-center">
+                      {hasDebt ? (
+                        <button
+                          onClick={() => {
+                            setShowPayModal(c);
+                            setPayAmount(c.outstanding_balance);
+                          }}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto"
+                        >
+                          ✅ 💰 تسديد (واصل)
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
+                          خالي من الديون ✨
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* مودال تسديد دفعة (واصل) */}
+      {/* نافذة تسديد مبلغ (واصل) */}
       {showPayModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-2xl">💰</span>
-              <h3 className="text-lg font-bold text-slate-800">تسجيل مبلغ واصل</h3>
+              <h3 className="text-lg font-bold text-slate-800">تسجيل دفعة واصل</h3>
             </div>
             <p className="text-sm text-slate-600 mb-4">
               العميل: <strong className="text-slate-800">{showPayModal.name}</strong>
@@ -177,11 +205,12 @@ export function ClientsList({ clients, onClientAdded }: Props) {
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">المبلغ المكتسب / الواصل (₪)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">المبلغ الواصل (₪)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
+                  min="0.01"
                   max={showPayModal.outstanding_balance}
                   value={payAmount}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
@@ -189,11 +218,19 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                 />
               </div>
 
-              <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <span className="text-xs text-slate-500">الدين المتبقي بعد التسديد:</span>
-                <span className="text-sm font-bold text-slate-800">
-                  {formatILS(Math.max(0, showPayModal.outstanding_balance - payAmount))}
-                </span>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between text-slate-600">
+                  <span>الدين المتبقي:</span>
+                  <span className="font-bold text-slate-800">
+                    {formatILS(Math.max(0, showPayModal.outstanding_balance - payAmount))}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>إجمالي المدفوعات الجديد:</span>
+                  <span className="font-bold text-emerald-600">
+                    {formatILS((showPayModal.total_paid || 0) + payAmount)}
+                  </span>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 space-x-reverse pt-2">
@@ -209,7 +246,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                   disabled={saving}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium"
                 >
-                  {saving ? 'جاري التأكيد...' : 'تأكيد وصول المبلغ ✅'}
+                  {saving ? 'جاري التأكيد...' : 'تأكيد التسديد ✅'}
                 </button>
               </div>
             </form>
@@ -217,7 +254,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
         </div>
       )}
 
-      {/* مودال إضافة عميل */}
+      {/* نافذة إضافة عميل جديد */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
@@ -264,15 +301,6 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                     className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">حد الائتمان (₪)</label>
-                <input
-                  type="number"
-                  value={creditLimit}
-                  onChange={(e) => setCreditLimit(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
-                />
               </div>
               <div className="flex justify-end space-x-3 space-x-reverse pt-4">
                 <button

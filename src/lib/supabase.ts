@@ -117,7 +117,8 @@ export interface Product {
   category: 'solution' | 'frame' | 'accessory';
   sku: string | null;
   unit_price: number;
-  stock_qty: number;
+  stock_qty: number;       // الكمية الكلية المسجلة للمنتج
+  consumed_stock: number;  // الكمية المستهلكة (المباعة) - جديد ✨
   active: boolean;
 }
 

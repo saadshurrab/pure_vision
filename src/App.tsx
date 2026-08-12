@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { ClientsList } from '@/components/ClientsList';
+import { OrdersHistory } from '@/components/OrdersHistory';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   supabase,
@@ -22,6 +25,7 @@ import { Cart } from '@/components/Cart';
 import { OrderConfirmationModal, type OrderSummary } from '@/components/OrderConfirmationModal';
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<'new-order' | 'orders-history' | 'clients'>('new-order');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -423,7 +427,90 @@ export default function App() {
     });
     clearCart();
   }
+async function reloadClients() {
+    const c = await supabase.from('clients').select('*').eq('active', true).order('name');
+    if (c.data) setClients(c.data);
+  }
 
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
+      <Header />
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
+        
+        {/* شريط التنقل بين التبويبات */}
+        <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
+          <button
+            onClick={() => setActiveTab('new-order')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'new-order'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            🛒 إنشاء طلب جديد
+          </button>
+          <button
+            onClick={() => setActiveTab('orders-history')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'orders-history'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            📋 سجل الطلبات
+          </button>
+          <button
+            onClick={() => setActiveTab('clients')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
+              activeTab === 'clients'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            👥 دليل العملاء
+          </button>
+        </div>
+
+        {/* عرض المحتوى بحسب التبويب النشط */}
+        {activeTab === 'new-order' && (
+          <>
+            <ClientSelector
+              clients={clients}
+              selectedClientId={selectedClientId}
+              onSelect={setSelectedClientId}
+            />
+
+            {selectedClient && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <SphMatrix
+                    // ... الخصائص كما هي
+                  />
+                  <AdditionalItems products={products} onAdd={addProduct} />
+                </div>
+                <div className="lg:col-span-1">
+                  <Cart
+                    // ... الخصائص كما هي
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'orders-history' && <OrdersHistory />}
+
+        {activeTab === 'clients' && <ClientsList clients={clients} onClientAdded={reloadClients} />}
+      </main>
+
+      <OrderConfirmationModal
+        summary={orderSummary}
+        onClose={() => setOrderSummary(null)}
+        onPrint={printInvoice}
+      />
+    </div>
+  );
+}
   async function handleSaveInvoice() {
     if (!selectedClient) return;
     const result = await persistOrder('confirmed');

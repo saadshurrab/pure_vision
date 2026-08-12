@@ -10,8 +10,6 @@ import {
   type PaymentMethod,
   type InvoiceData,
   type SphSign,
-  getSPHValues,
-  isLensItem,
   formatILS,
   formatSPH,
   SPH_ALL,
@@ -58,14 +56,17 @@ export default function App() {
           supabase.from('products').select('*').eq('active', true).order('category, name'),
           supabase.from('lens_stock').select('*'),
         ]);
+
         if (c.error) throw c.error;
         if (l.error) throw l.error;
         if (p.error) throw p.error;
         if (ls.error) throw ls.error;
+
         setClients(c.data || []);
         setLensProducts(l.data || []);
         setProducts(p.data || []);
         setLensStock(ls.data || []);
+
         if (l.data && l.data.length > 0) {
           const first = l.data[0];
           setSelectedLensId(first.id);
@@ -142,30 +143,38 @@ export default function App() {
     return m;
   }, [lensStock]);
 
-  // Sync lens quantities into cart lens items
+  // Sync lens quantities into cart
   useEffect(() => {
     if (!selectedLens) return;
-    const key = (sph: number) => `${selectedLens.id}:${sph}`;
-    const updated: CartLensItem[] = SPH_ALL.map((sph) => {
-      const qty = lensQuantities[key(sph)] || 0;
-      return {
-        lensProductId: selectedLens.id,
-        brand: selectedLens.brand,
-        bc: selectedLens.bc,
-        dia: selectedLens.dia,
-        unitPrice: selectedLens.unit_price,
-        sph,
-        cyl: isToric ? selectedCYL : null,
-        axis: isToric ? selectedAXIS : null,
-        isCustom: false,
-        quantity: qty,
-      };
-    }).filter((i) => i.quantity > 0);
 
-    const others = cart.filter((i) => !(isLensItem(i) && i.lensProductId === selectedLens.id && !i.isCustom));
-    setCart([...others, ...updated]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lensQuantities, selectedLensId, selectedBC, selectedDIA, isToric, selectedCYL, selectedAXIS]);
+    setCart((prevCart) => {
+      const key = (sph: number) => `${selectedLens.id}:${sph}`;
+      const updatedLensItems: CartLensItem[] = SPH_ALL.map((sph) => {
+        const qty = lensQuantities[key(sph)] || 0;
+        return {
+          lensProductId: selectedLens.id,
+          brand: selectedLens.brand,
+          bc: selectedLens.bc,
+          dia: selectedLens.dia,
+          unitPrice: selectedLens.unit_price,
+          sph,
+          cyl: isToric ? selectedCYL : null,
+          axis: isToric ? selectedAXIS : null,
+          isCustom: false,
+          quantity: qty,
+        };
+      }).filter((item) => item.quantity > 0);
+
+      const unmanagedItems = prevCart.filter(
+        (item) =>
+          !('lensProductId' in item) ||
+          item.lensProductId !== selectedLens.id ||
+          item.isCustom
+      );
+
+      return [...unmanagedItems, ...updatedLensItems];
+    });
+  }, [lensQuantities, selectedLens, isToric, selectedCYL, selectedAXIS]);
 
   function setLensQty(sph: number, qty: number) {
     if (!selectedLens) return;
@@ -190,7 +199,7 @@ export default function App() {
   }
 
   function addCustomPrescription() {
-    if (!customPrescription || !customPrescription.sph || !selectedLens) return;
+    if (!customPrescription || customPrescription.sph === null || !selectedLens) return;
     const item: CartLensItem = {
       lensProductId: selectedLens.id,
       brand: selectedLens.brand,
@@ -211,11 +220,12 @@ export default function App() {
     if (qty <= 0) return;
     setCart((prev) => {
       const idx = prev.findIndex(
-        (i) => !isLensItem(i) && (i as CartProductItem).productId === p.id
+        (i) => !('lensProductId' in i) && (i as CartProductItem).productId === p.id
       );
       if (idx >= 0) {
-        const copy = [...prev] as CartProductItem[];
-        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + qty };
+        const copy = [...prev];
+        const existing = copy[idx] as CartProductItem;
+        copy[idx] = { ...existing, quantity: existing.quantity + qty };
         return copy;
       }
       return [
@@ -256,15 +266,21 @@ export default function App() {
     () => cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0),
     [cart]
   );
+
   const discountAmount = useMemo(
-    () => Math.round(subtotal * discountPercent) / 100,
+    () => Math.round(subtotal * (discountPercent / 100) * 100) / 100,
     [subtotal, discountPercent]
   );
-  const total = Math.max(0, subtotal - discountAmount);
+
+  const total = useMemo(
+    () => Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100),
+    [subtotal, discountAmount]
+  );
 
   const availableCredit = selectedClient
     ? selectedClient.credit_limit - selectedClient.outstanding_balance
     : 0;
+
   const creditExceeded = selectedClient ? total > availableCredit : false;
 
   const persistOrder = useCallback(
@@ -292,17 +308,18 @@ export default function App() {
             subtotal: Math.round(subtotal * 100) / 100,
             discount_percent: discountPercent,
             discount_amount: discountAmount,
-            total: Math.round(total * 100) / 100,
+            total,
             status,
             payment_method: paymentMethod,
             notes: notes || null,
           })
           .select()
           .single();
+
         if (oe) throw oe;
 
         const items = cart.map((i) =>
-          isLensItem(i)
+          'lensProductId' in i
             ? {
                 order_id: order.id,
                 item_type: 'lens',
@@ -326,6 +343,7 @@ export default function App() {
                 line_total: Math.round(i.unitPrice * i.quantity * 100) / 100,
               }
         );
+
         const { error: ie } = await supabase.from('order_items').insert(items);
         if (ie) throw ie;
 
@@ -337,6 +355,7 @@ export default function App() {
             .from('clients')
             .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
             .eq('id', selectedClient.id);
+
           if (ue) throw ue;
 
           setClients((prev) =>
@@ -350,6 +369,7 @@ export default function App() {
             order_id: order.id,
             invoice_number: invoiceNumber,
           });
+
           if (invErr) throw invErr;
         }
 
@@ -366,11 +386,11 @@ export default function App() {
 
   async function handleSaveDraft() {
     const result = await persistOrder('draft');
-    if (result) {
+    if (result && selectedClient) {
       setOrderSummary({
         orderId: result.orderId,
         invoiceNumber: '',
-        client: selectedClient!,
+        client: selectedClient,
         items: cart,
         subtotal,
         discountPercent,
@@ -386,12 +406,12 @@ export default function App() {
 
   async function handleSaveOrder() {
     const result = await persistOrder('confirmed');
-    if (!result) return;
+    if (!result || !selectedClient) return;
 
     setOrderSummary({
       orderId: result.orderId,
       invoiceNumber: result.invoiceNumber || `INV-${Date.now().toString().slice(-8)}`,
-      client: selectedClient!,
+      client: selectedClient,
       items: cart,
       subtotal,
       discountPercent,
@@ -405,6 +425,7 @@ export default function App() {
   }
 
   async function handleSaveInvoice() {
+    if (!selectedClient) return;
     const result = await persistOrder('confirmed');
     if (!result) return;
 
@@ -412,7 +433,7 @@ export default function App() {
     const invoice: InvoiceData = {
       invoiceNumber,
       orderId: result.orderId,
-      client: selectedClient!,
+      client: selectedClient,
       items: cart,
       subtotal,
       discountPercent,
@@ -426,7 +447,7 @@ export default function App() {
     setOrderSummary({
       orderId: result.orderId,
       invoiceNumber,
-      client: selectedClient!,
+      client: selectedClient,
       items: cart,
       subtotal,
       discountPercent,
@@ -436,6 +457,7 @@ export default function App() {
       status: 'confirmed',
       createdAt: new Date().toISOString(),
     });
+
     printInvoice(invoice);
     clearCart();
   }
@@ -452,7 +474,7 @@ export default function App() {
 
     const itemRows = data.items
       .map((item) => {
-        if (isLensItem(item)) {
+        if ('lensProductId' in item) {
           const sphLabel = formatSPH(item.sph);
           const cylAxis =
             item.cyl != null

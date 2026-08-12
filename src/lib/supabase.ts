@@ -85,14 +85,14 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: strin
 // ── Types ──
 export interface Client {
   id: string;
+  created_at: string;
   name: string;
   code: string;
-  credit_limit: number;
-  outstanding_balance: number;
-  phone: string | null;
-  city: string | null;
+  city?: string;
+  phone?: string;
+  outstanding_balance: number; // إجمالي الدين الحالي
+  total_paid: number;          // إجمالي المدفوعات التراكمي (جديد)
   active: boolean;
-  created_at: string;
 }
 
 export interface LensProduct {

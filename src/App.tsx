@@ -373,6 +373,7 @@ export default function App() {
         if (ie) throw ie;
 
         if (status === 'confirmed') {
+          // الخصم من المخزون وتحديث المستهلك
           for (const item of cart) {
             if ('lensProductId' in item) {
               const currentQty = stockMap.get(`${item.lensProductId}:${item.sph}`) || 0;
@@ -382,6 +383,15 @@ export default function App() {
                 .update({ stock_qty: newQty })
                 .eq('lens_product_id', item.lensProductId)
                 .eq('sph', item.sph);
+            } else if ('productId' in item) {
+              const targetProduct = products.find((p) => p.id === item.productId);
+              if (targetProduct) {
+                const currentConsumed = targetProduct.consumed_stock || 0;
+                await supabase
+                  .from('products')
+                  .update({ consumed_stock: currentConsumed + item.quantity })
+                  .eq('id', item.productId);
+              }
             }
           }
 
@@ -420,7 +430,7 @@ export default function App() {
         setSaving(false);
       }
     },
-    [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, loadData]
+    [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, products, loadData]
   );
 
   const calculatedReturnTotal = useMemo(() => {
@@ -456,6 +466,15 @@ export default function App() {
           .update({ stock_qty: currentQty + returnQty })
           .eq('lens_product_id', selectedReturnLensId)
           .eq('sph', returnSph);
+      } else if (returnItemType === 'product' && selectedReturnProductId) {
+        const p = products.find((prod) => prod.id === selectedReturnProductId);
+        if (p) {
+          const newConsumed = Math.max(0, (p.consumed_stock || 0) - returnQty);
+          await supabase
+            .from('products')
+            .update({ consumed_stock: newConsumed })
+            .eq('id', selectedReturnProductId);
+        }
       }
 
       setClients((prev) =>
@@ -937,65 +956,6 @@ export default function App() {
             )}
           </div>
         )}
-
-            {/* عرض مخزون المنتجات والملحقات العامة */}
-{inventoryType === 'products' && (
-  <div className="overflow-x-auto border rounded-xl">
-    <table className="w-full text-right border-collapse">
-      <thead>
-        <tr className="bg-slate-100 border-b text-slate-700">
-          <th className="p-3 text-sm font-bold">الرمز (SKU)</th>
-          <th className="p-3 text-sm font-bold">اسم المنتج / الملحق</th>
-          <th className="p-3 text-sm font-bold">الفئة</th>
-          <th className="p-3 text-sm font-bold">سعر القطعة</th>
-          <th className="p-3 text-sm font-bold">الكمية المتوفرة</th>
-          <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
-        </tr>
-      </thead>
-      <tbody>
-        {products.length > 0 ? (
-          products.map((p) => {
-            // فحص اسم حقل الكمية القادم من داتا بيز Supabase
-            const qty = (p as any).stock_qty ?? (p as any).stock ?? (p as any).quantity ?? 0;
-
-            return (
-              <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
-                <td className="p-3 text-sm font-mono text-slate-500">{p.sku || '-'}</td>
-                <td className="p-3 text-sm font-bold text-slate-800">{p.name}</td>
-                <td className="p-3 text-sm font-medium text-slate-600">
-                  <span className="bg-slate-100 px-2.5 py-1 rounded-md text-xs border border-slate-200">
-                    {p.category || 'عام'}
-                  </span>
-                </td>
-                <td className="p-3 text-sm font-bold text-emerald-700">{formatILS(p.unit_price)}</td>
-                <td className="p-3 text-sm font-bold text-slate-800">{qty} قطعة</td>
-                <td className="p-3 text-sm text-center">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
-                      qty === 0
-                        ? 'bg-rose-100 text-rose-700'
-                        : qty < 5
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                    }`}
-                  >
-                    {qty === 0 ? 'منتهي' : qty < 5 ? 'منخفض' : 'متوفر'}
-                  </span>
-                </td>
-              </tr>
-            );
-          })
-        ) : (
-          <tr>
-            <td colSpan={6} className="p-6 text-center text-slate-400 text-sm">
-              لا توجد منتجات مسجلة في النظام حالياً.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-)}
 
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}

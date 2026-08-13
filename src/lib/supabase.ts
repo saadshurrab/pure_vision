@@ -12,7 +12,7 @@ export const CURRENCY_SYMBOL = '₪';
 export const CURRENCY_NAME_AR = 'شيكل';
 
 export function formatILS(amount: number): string {
-  return `${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₪`;
+  return `${(amount || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₪`;
 }
 
 // ── SPH sign selector ──
@@ -90,9 +90,36 @@ export interface Client {
   code: string;
   city?: string;
   phone?: string;
-  outstanding_balance: number; // إجمالي الدين الحالي
-  total_paid: number;          // إجمالي المدفوعات التراكمي (جديد)
+  outstanding_balance: number; // إجمالي الدين الحكالي/الرصيد النهائي
+  total_paid: number;          // إجمالي الدائن (الواصل)
   active: boolean;
+}
+
+// ── حركة كشف حساب الزبون (الجديد ✨ المطابق للدفتري والملف) ──
+export interface ClientTransaction {
+  id: string;
+  client_id: string;
+  invoice_number: string | null;
+  transaction_date: string;
+  debit: number;          // مدين (مطلوبات / طلبيات)
+  credit: number;         // دائن (مقبوضات / واصل)
+  discount: number;       // الخصم
+  return_amount: number;  // قيمة المرجع
+  balance: number;        // رصيد الحركة
+  running_balance: number;// الرصيد التراكمي
+  description: string;    // البيان (طلبية، دفعة، رصيد سابق...)
+  created_at: string;
+}
+
+// ── ملخص كشف حساب الزبون الشامل ──
+export interface ClientSummary {
+  client_id: string;
+  name: string;
+  total_debit: number;    // إجمالي المدين
+  total_credit: number;   // إجمالي الدائن
+  total_discount: number; // إجمالي الخصم
+  total_return: number;   // إجمالي المرجع
+  final_balance: number;  // الرصيد النهائي المتبقي
 }
 
 export interface LensProduct {
@@ -118,7 +145,7 @@ export interface Product {
   sku: string | null;
   unit_price: number;
   stock_qty: number;       // الكمية الكلية المسجلة للمنتج
-  consumed_stock: number;  // الكمية المستهلكة (المباعة) - جديد ✨
+  consumed_stock: number;  // الكمية المستهلكة (المباعة)
   active: boolean;
 }
 

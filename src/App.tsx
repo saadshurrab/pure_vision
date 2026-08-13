@@ -53,10 +53,14 @@ export default function App() {
   // نافذة تأكيد الطلب
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-  // إعدادات مرتجعات العملاء
-  const [returnAmount, setReturnAmount] = useState<number>(0);
-  const [returnNote, setReturnNote] = useState('');
+  // إعدادات مرتجعات العملاء (بالمنتجات)
   const [selectedReturnClient, setSelectedReturnClient] = useState<Client | null>(null);
+  const [returnItemType, setReturnItemType] = useState<'product' | 'lens'>('product');
+  const [selectedReturnProductId, setSelectedReturnProductId] = useState<string>('');
+  const [selectedReturnLensId, setSelectedReturnLensId] = useState<string>('');
+  const [returnSph, setReturnSph] = useState<number>(0);
+  const [returnQty, setReturnQty] = useState<number>(1);
+  const [returnNote, setReturnNote] = useState('');
 
   // فلتر عرض المخزون حسب النوع
   const [inventoryCategory, setInventoryCategory] = useState<string>('');
@@ -90,13 +94,20 @@ export default function App() {
         if (!inventoryCategory) {
           setInventoryCategory(l.data[0].id);
         }
+        if (!selectedReturnLensId) {
+          setSelectedReturnLensId(l.data[0].id);
+        }
+      }
+
+      if (p.data && p.data.length > 0 && !selectedReturnProductId) {
+        setSelectedReturnProductId(p.data[0].id);
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-    } finally {
+    } fontally {
       setLoading(false);
     }
-  }, [selectedLensId, inventoryCategory]);
+  }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);
 
   useEffect(() => {
     loadData();
@@ -411,16 +422,44 @@ export default function App() {
     [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, loadData]
   );
 
+  // حساب القيمة المالية التلقائية للمنتج المرجع
+  const calculatedReturnTotal = useMemo(() => {
+    if (returnQty <= 0) return 0;
+    if (returnItemType === 'product') {
+      const p = products.find((prod) => prod.id === selectedReturnProductId);
+      return (p?.unit_price || 0) * returnQty;
+    } else {
+      const l = lensProducts.find((lens) => lens.id === selectedReturnLensId);
+      return (l?.unit_price || 0) * returnQty;
+    }
+  }, [returnItemType, selectedReturnProductId, selectedReturnLensId, returnQty, products, lensProducts]);
+
+  // تنفيذ عملية إرجاع المنتج (إعادة للمخزون + خصم القيمة من دين العميل)
   async function handleReturnProduct() {
-    if (!selectedReturnClient || returnAmount <= 0) return;
+    if (!selectedReturnClient || returnQty <= 0 || calculatedReturnTotal <= 0) {
+      alert('يرجى تحديد المنتج والكمية بشكل صحيح');
+      return;
+    }
+
     try {
-      const updatedBalance = Math.max(0, selectedReturnClient.outstanding_balance - returnAmount);
-      const { error } = await supabase
+      // 1. خصم قيمة المنتج المرجع من حساب دين العميل
+      const updatedBalance = Math.max(0, selectedReturnClient.outstanding_balance - calculatedReturnTotal);
+      const { error: clientError } = await supabase
         .from('clients')
         .update({ outstanding_balance: updatedBalance })
         .eq('id', selectedReturnClient.id);
 
-      if (error) throw error;
+      if (clientError) throw clientError;
+
+      // 2. إعادة الكمية المرجعة إلى جدول المخزون (إذا كانت عدسة)
+      if (returnItemType === 'lens' && selectedReturnLensId) {
+        const currentQty = stockMap.get(`${selectedReturnLensId}:${returnSph}`) || 0;
+        await supabase
+          .from('lens_stock')
+          .update({ stock_qty: currentQty + returnQty })
+          .eq('lens_product_id', selectedReturnLensId)
+          .eq('sph', returnSph);
+      }
 
       setClients((prev) =>
         prev.map((c) =>
@@ -428,10 +467,12 @@ export default function App() {
         )
       );
 
+      await loadData(); // تحديث البيانات المحلية والمخزون
+
       setSelectedReturnClient(null);
-      setReturnAmount(0);
+      setReturnQty(1);
       setReturnNote('');
-      alert('تم خصم قيمة المرتجع بنجاح من دين العميل');
+      alert(`تم تسجيل المرتجع بنجاح وإعادة المنتجات للمخزون، وخصم مبلغ ${formatILS(calculatedReturnTotal)} من دين العميل.`);
     } catch (e) {
       alert('حدث خطأ أثناء تسجيل المرتجع: ' + (e instanceof Error ? e.message : ''));
     }
@@ -705,7 +746,7 @@ export default function App() {
           </>
         )}
 
-        {/* Tab 2: واجهة عرض المخزون المخصصة للنوع المختار فقط بدون تكرار */}
+        {/* Tab 2: واجهة عرض المخزون */}
         {activeTab === 'inventory' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
@@ -809,43 +850,114 @@ export default function App() {
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {/* Tab 4: دليل العملاء + المرتجعات */}
+        {/* Tab 4: دليل العملاء + المرتجعات بالمنتج */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm">
-                <h3 className="font-bold text-amber-800 mb-2">
-                  تسجيل مرتجع للعميل: {selectedReturnClient.name}
-                </h3>
-                <p className="text-sm text-amber-700 mb-4">
-                  الدين المترتب حالياً: {formatILS(selectedReturnClient.outstanding_balance)}
-                </p>
-                <div className="flex flex-wrap gap-4 items-center">
-                  <input
-                    type="number"
-                    placeholder="مبلغ المرتجع بالـ ₪"
-                    value={returnAmount || ''}
-                    onChange={(e) => setReturnAmount(Number(e.target.value))}
-                    className="p-2 border rounded-lg text-sm bg-white w-48"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ملاحظات حول المرتجع..."
-                    value={returnNote}
-                    onChange={(e) => setReturnNote(e.target.value)}
-                    className="p-2 border rounded-lg text-sm bg-white flex-1 min-w-[200px]"
-                  />
-                  <button
-                    onClick={handleReturnProduct}
-                    className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 transition"
-                  >
-                    خصم المرتجع من الدين
-                  </button>
+              <div className="bg-amber-50 border border-amber-200 p-5 rounded-xl shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-amber-200 pb-3">
+                  <div>
+                    <h3 className="font-bold text-amber-900 text-base">
+                      ↩ تسجيل مرجع منتج للعميل: {selectedReturnClient.name}
+                    </h3>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      الدين الحالي: <span className="font-bold">{formatILS(selectedReturnClient.outstanding_balance)}</span>
+                    </p>
+                  </div>
                   <button
                     onClick={() => setSelectedReturnClient(null)}
-                    className="text-slate-500 text-sm hover:underline"
+                    className="text-amber-800 text-xs font-bold hover:underline"
                   >
-                    إلغاء
+                    إلغاء المرتجع ✕
+                  </button>
+                </div>
+
+                {/* واجهة اختيار نوع المرتجع (عدسة أم منتج آخر) */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-amber-900 mb-1">نوع المرجع:</label>
+                    <select
+                      value={returnItemType}
+                      onChange={(e) => setReturnItemType(e.target.value as 'product' | 'lens')}
+                      className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
+                    >
+                      <option value="product">منتج عام / ملحقات</option>
+                      <option value="lens">عدسة لاصقة</option>
+                    </select>
+                  </div>
+
+                  {returnItemType === 'product' ? (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-amber-900 mb-1">اختر المنتج المرجع:</label>
+                      <select
+                        value={selectedReturnProductId}
+                        onChange={(e) => setSelectedReturnProductId(e.target.value)}
+                        className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
+                      >
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({formatILS(p.unit_price)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 mb-1">اختر نوع العدسة:</label>
+                        <select
+                          value={selectedReturnLensId}
+                          onChange={(e) => setSelectedReturnLensId(e.target.value)}
+                          className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
+                        >
+                          {lensProducts.map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.brand} ({formatILS(l.unit_price)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 mb-1">مقاس العدسة (SPH):</label>
+                        <select
+                          value={returnSph}
+                          onChange={(e) => setReturnSph(Number(e.target.value))}
+                          className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
+                        >
+                          {SPH_ALL.map((sph) => (
+                            <option key={sph} value={sph}>
+                              {formatSPH(sph)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-amber-900 mb-1">الكمية المرجعة:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={returnQty}
+                      onChange={(e) => setReturnQty(Math.max(1, Number(e.target.value)))}
+                      className="w-full p-2 border rounded-lg text-sm bg-white font-bold text-slate-800 text-center"
+                    />
+                  </div>
+                </div>
+
+                {/* تفاصيل المجموع والزر */}
+                <div className="flex flex-wrap justify-between items-center bg-amber-100/70 p-3 rounded-lg border border-amber-200">
+                  <div className="text-sm font-bold text-amber-900">
+                    إجمالي قيمة المرجع المخصومة تلقائياً: <span className="text-emerald-700 font-extrabold text-base">{formatILS(calculatedReturnTotal)}</span>
+                  </div>
+
+                  <button
+                    onClick={handleReturnProduct}
+                    className="bg-amber-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-amber-800 transition shadow-sm"
+                  >
+                    تأكيد إرجاع المنتج وخصم القيمـة
                   </button>
                 </div>
               </div>
@@ -865,9 +977,9 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setSelectedReturnClient(c)}
-                      className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-2 rounded-lg font-bold transition"
+                      className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition"
                     >
-                      ↩ تسجيل مرتجع
+                      ↩ مرجع منتج
                     </button>
                   </div>
                 ))}

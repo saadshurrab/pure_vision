@@ -85,6 +85,11 @@ export function SphMatrix({
   const selected = lensProducts.find((l) => l.id === selectedLensId);
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
+  // إزالة الأسماء المكررة من القائمة المنسدلة للعلامة التجارية
+  const uniqueLensProducts = Array.from(
+    new Map(lensProducts.map((item) => [item.brand, item])).values()
+  );
+
   const sphValues = getSPHValues(sphSign);
 
   const totalQty = selected
@@ -217,7 +222,7 @@ export function SphMatrix({
         </button>
       </div>
 
-      {/* Lens specs controls (تم إخفاء BC و DIA) */}
+      {/* Lens specs controls */}
       <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center gap-3 flex-wrap justify-between">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-slate-500">العلامة</label>
@@ -226,14 +231,14 @@ export function SphMatrix({
             onChange={(e) => onSelectLens(e.target.value)}
             className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
-            {lensProducts.map((l) => (
+            {uniqueLensProducts.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.brand}
               </option>
             ))}
           </select>
         </div>
-        
+
         {selected && (
           <span className="text-xs text-slate-500">
             السعر: <strong className="text-slate-700">{formatILS(selected.unit_price)}</strong> / علبة

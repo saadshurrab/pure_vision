@@ -104,7 +104,7 @@ export default function App() {
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-    } finally {
+    } fontally {
       setLoading(false);
     }
   }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);

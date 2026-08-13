@@ -7,7 +7,15 @@ export function Header() {
         
         {/* الشعار والاسم */}
         <div className="flex items-center gap-4">
-          
+          <button
+  onClick={() => {
+    localStorage.removeItem('pvo_authenticated');
+    window.location.reload();
+  }}
+  className="bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/30 text-xs font-bold transition"
+>
+  🔒 خروج
+</button>
           {/* الشعار المبني بالكامل عن طريق الكود (Code-generated Logo) */}
           <div className="relative flex items-center justify-center p-1.5 bg-white rounded-xl shadow-lg shadow-sky-500/10 border border-slate-700 h-14 min-w-[56px] px-2">
             <div className="flex flex-col items-center justify-center">

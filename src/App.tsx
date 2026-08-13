@@ -7,7 +7,6 @@ import {
   type Product,
   type CartLensItem,
   type CartProductItem,
-  type PaymentMethod,
   type InvoiceData,
   type SphSign,
   formatILS,
@@ -51,16 +50,16 @@ export default function App() {
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
 
-  // حالة النافذة المنبثقة لإكمال وإيحاء الطلب
+  // نافذة تأكيد الطلب
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-  // حالة المرتجعات للعميل
+  // إعدادات مرتجعات العملاء
   const [returnAmount, setReturnAmount] = useState<number>(0);
   const [returnNote, setReturnNote] = useState('');
   const [selectedReturnClient, setSelectedReturnClient] = useState<Client | null>(null);
 
-  // حالة تصفية المخزون
-  const [inventoryCategory, setInventoryCategory] = useState<string>('all');
+  // فلتر عرض المخزون حسب النوع
+  const [inventoryCategory, setInventoryCategory] = useState<string>('');
 
   const loadData = useCallback(async () => {
     try {
@@ -81,18 +80,23 @@ export default function App() {
       setProducts(p.data || []);
       setLensStock(ls.data || []);
 
-      if (l.data && l.data.length > 0 && !selectedLensId) {
-        const first = l.data[0];
-        setSelectedLensId(first.id);
-        setSelectedBC(first.bc);
-        setSelectedDIA(first.dia);
+      if (l.data && l.data.length > 0) {
+        if (!selectedLensId) {
+          const first = l.data[0];
+          setSelectedLensId(first.id);
+          setSelectedBC(first.bc);
+          setSelectedDIA(first.dia);
+        }
+        if (!inventoryCategory) {
+          setInventoryCategory(l.data[0].id);
+        }
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
     } finally {
       setLoading(false);
     }
-  }, [selectedLensId]);
+  }, [selectedLensId, inventoryCategory]);
 
   useEffect(() => {
     loadData();
@@ -292,7 +296,6 @@ export default function App() {
 
   const creditExceeded = selectedClient ? total > availableCredit : false;
 
-  // حفظ الطلب وخصم الكميات تلقائياً من جدول المخزون
   const persistOrder = useCallback(
     async (status: 'draft' | 'confirmed'): Promise<{ orderId: string; invoiceNumber?: string } | null> => {
       if (!selectedClient) {
@@ -357,7 +360,6 @@ export default function App() {
         const { error: ie } = await supabase.from('order_items').insert(items);
         if (ie) throw ie;
 
-        // خصم التلقائي للكميات من جدول المخزون
         if (status === 'confirmed') {
           for (const item of cart) {
             if ('lensProductId' in item) {
@@ -385,7 +387,7 @@ export default function App() {
             )
           );
 
-          await loadData(); // إعادة التحميل لتحديث جدول المخزون المحلي
+          await loadData();
         }
 
         let invoiceNumber: string | undefined;
@@ -409,7 +411,6 @@ export default function App() {
     [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, loadData]
   );
 
-  // إرجاع المنتج وخصمه من دين العميل
   async function handleReturnProduct() {
     if (!selectedReturnClient || returnAmount <= 0) return;
     try {
@@ -430,7 +431,7 @@ export default function App() {
       setSelectedReturnClient(null);
       setReturnAmount(0);
       setReturnNote('');
-      alert('تم خصم قيمة المرتجع بنجاح من حساب العميل');
+      alert('تم خصم قيمة المرتجع بنجاح من دين العميل');
     } catch (e) {
       alert('حدث خطأ أثناء تسجيل المرتجع: ' + (e instanceof Error ? e.message : ''));
     }
@@ -583,7 +584,7 @@ export default function App() {
     win.document.close();
   }
 
-  if (loading) return <div className="p-8 text-center">جاري التحميل...</div>;
+  if (loading) return <div className="p-8 text-center text-slate-500 font-bold">جاري تحميل البيانات...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
@@ -624,7 +625,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* tab 1: إنشاء طلب جديد */}
+        {/* Tab 1: إنشاء طلب جديد */}
         {activeTab === 'new-order' && (
           <>
             <ClientSelector
@@ -704,19 +705,22 @@ export default function App() {
           </>
         )}
 
-        {/* tab 2: عرض المخزون مع خيارات تصفية حسب النوع */}
+        {/* Tab 2: واجهة عرض المخزون المخصصة للنوع المختار فقط بدون تكرار */}
         {activeTab === 'inventory' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-800">جدول حالة المخزون الحالي</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">📦 حالة المخزون حسب النوع</h2>
+                <p className="text-xs text-slate-500 mt-1">اختر نوع العدسة للتعرف على جدول مقاساتها والكميات المتوفرة بها</p>
+              </div>
+
               <div className="flex items-center gap-2">
-                <label className="text-sm font-semibold text-slate-600">تصفية حسب النوع:</label>
+                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">اختر النوع:</label>
                 <select
-                  value={inventoryCategory}
+                  value={inventoryCategory || (lensProducts[0]?.id || '')}
                   onChange={(e) => setInventoryCategory(e.target.value)}
-                  className="p-2 border rounded-lg text-sm bg-slate-50"
+                  className="p-2.5 border border-slate-300 rounded-lg text-sm bg-slate-50 font-bold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="all">جميع الأنواع</option>
                   {lensProducts.map((lp) => (
                     <option key={lp.id} value={lp.id}>
                       {lp.brand} (BC: {lp.bc} / DIA: {lp.dia})
@@ -726,76 +730,114 @@ export default function App() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-right border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 border-b">
-                    <th className="p-3 text-sm font-bold">اسم المنتج / الصنف</th>
-                    <th className="p-3 text-sm font-bold">SPH / الخواص</th>
-                    <th className="p-3 text-sm font-bold">الكمية المتوفرة بالمخزن</th>
-                    <th className="p-3 text-sm font-bold">سعر الوحدة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lensStock
-                    .filter((s) => inventoryCategory === 'all' || s.lens_product_id === inventoryCategory)
-                    .map((s) => {
-                      const lp = lensProducts.find((l) => l.id === s.lens_product_id);
-                      return (
-                        <tr key={s.id} className="border-b hover:bg-slate-50">
-                          <td className="p-3 text-sm font-medium">{lp?.brand || 'عدسة'}</td>
-                          <td className="p-3 text-sm text-slate-600">SPH: {formatSPH(s.sph)}</td>
-                          <td className="p-3 text-sm">
-                            <span
-                              className={`px-2 py-1 rounded font-bold ${
-                                s.stock_qty < 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                              }`}
-                            >
-                              {s.stock_qty} قطعة
-                            </span>
-                          </td>
-                          <td className="p-3 text-sm">{formatILS(lp?.unit_price || 0)}</td>
+            {(() => {
+              const currentLensId = inventoryCategory || lensProducts[0]?.id;
+              const selectedProduct = lensProducts.find((l) => l.id === currentLensId);
+
+              if (!selectedProduct) {
+                return <div className="text-center text-slate-500 py-8">يرجى اختيار نوع العدسة من القائمة أعلاه</div>;
+              }
+
+              const filteredStock = lensStock.filter((s) => s.lens_product_id === selectedProduct.id);
+
+              return (
+                <div className="space-y-4">
+                  <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                      <span className="text-xs text-sky-600 font-bold block">النوع المحدد حالياً:</span>
+                      <h3 className="text-lg font-bold text-sky-900">{selectedProduct.brand}</h3>
+                    </div>
+                    <div className="flex gap-3 text-xs font-semibold text-sky-800">
+                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">BC: {selectedProduct.bc}</span>
+                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">DIA: {selectedProduct.dia}</span>
+                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">السعر: {formatILS(selectedProduct.unit_price)}</span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full text-right border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b text-slate-700">
+                          <th className="p-3 text-sm font-bold">قياس (SPH)</th>
+                          <th className="p-3 text-sm font-bold">الكمية المتوفرة بالمخزن</th>
+                          <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
                         </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
+                      </thead>
+                      <tbody>
+                        {filteredStock.length > 0 ? (
+                          filteredStock
+                            .sort((a, b) => a.sph - b.sph)
+                            .map((s) => (
+                              <tr key={s.id} className="border-b hover:bg-slate-50 transition-colors">
+                                <td className="p-3 text-sm font-bold dir-ltr text-right">
+                                  {formatSPH(s.sph)}
+                                </td>
+                                <td className="p-3 text-sm font-semibold">
+                                  {s.stock_qty} قطعة
+                                </td>
+                                <td className="p-3 text-sm text-center">
+                                  <span
+                                    className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
+                                      s.stock_qty === 0
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : s.stock_qty < 5
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                    }`}
+                                  >
+                                    {s.stock_qty === 0 ? 'منتهي' : s.stock_qty < 5 ? 'منخفض' : 'متوفر'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={3} className="p-6 text-center text-slate-400 text-sm">
+                              لا توجد بيانات مخزون مسجلة لهذا النوع حالياً.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* tab 3: سجل الطلبات */}
+        {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {/* tab 4: دليل العملاء + المرتجعات */}
+        {/* Tab 4: دليل العملاء + المرتجعات */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm">
                 <h3 className="font-bold text-amber-800 mb-2">
                   تسجيل مرتجع للعميل: {selectedReturnClient.name}
                 </h3>
                 <p className="text-sm text-amber-700 mb-4">
-                  الدين الحالي المترتب على العميل: {formatILS(selectedReturnClient.outstanding_balance)}
+                  الدين المترتب حالياً: {formatILS(selectedReturnClient.outstanding_balance)}
                 </p>
-                <div className="flex gap-4 items-center">
+                <div className="flex flex-wrap gap-4 items-center">
                   <input
                     type="number"
                     placeholder="مبلغ المرتجع بالـ ₪"
                     value={returnAmount || ''}
                     onChange={(e) => setReturnAmount(Number(e.target.value))}
-                    className="p-2 border rounded-lg text-sm bg-white"
+                    className="p-2 border rounded-lg text-sm bg-white w-48"
                   />
                   <input
                     type="text"
-                    placeholder="ملاحظات المرتجع..."
+                    placeholder="ملاحظات حول المرتجع..."
                     value={returnNote}
                     onChange={(e) => setReturnNote(e.target.value)}
-                    className="p-2 border rounded-lg text-sm bg-white flex-1"
+                    className="p-2 border rounded-lg text-sm bg-white flex-1 min-w-[200px]"
                   />
                   <button
                     onClick={handleReturnProduct}
-                    className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700"
+                    className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 transition"
                   >
                     خصم المرتجع من الدين
                   </button>
@@ -809,8 +851,8 @@ export default function App() {
               </div>
             )}
 
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-              <h3 className="font-bold mb-4">قائمة العملاء المباشرة</h3>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+              <h3 className="font-bold mb-4 text-slate-800">قائمة العملاء المباشرة</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {clients.map((c) => (
                   <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50">
@@ -823,7 +865,7 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setSelectedReturnClient(c)}
-                      className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-2 rounded-lg font-bold"
+                      className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-2 rounded-lg font-bold transition"
                     >
                       ↩ تسجيل مرتجع
                     </button>
@@ -837,7 +879,7 @@ export default function App() {
         )}
       </main>
 
-      {/* نافذة خيارات حفظ وتأكيد الطلب Modal رؤية السلة بالخلفية */}
+      {/* النافذة المنبثقة Modal لحفظ/إكمال الطلب لرؤية السلة بالخلفية */}
       {showCheckoutModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
@@ -850,7 +892,7 @@ export default function App() {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setPaymentMethod('cash')}
-                    className={`py-2 text-xs font-bold rounded-lg border ${
+                    className={`py-2 text-xs font-bold rounded-lg border transition ${
                       paymentMethod === 'cash' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
                     }`}
                   >
@@ -858,7 +900,7 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setPaymentMethod('credit')}
-                    className={`py-2 text-xs font-bold rounded-lg border ${
+                    className={`py-2 text-xs font-bold rounded-lg border transition ${
                       paymentMethod === 'credit' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
                     }`}
                   >
@@ -866,7 +908,7 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setPaymentMethod('bank')}
-                    className={`py-2 text-xs font-bold rounded-lg border ${
+                    className={`py-2 text-xs font-bold rounded-lg border transition ${
                       paymentMethod === 'bank' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
                     }`}
                   >

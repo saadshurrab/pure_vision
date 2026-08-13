@@ -21,8 +21,14 @@ import { Cart } from '@/components/Cart';
 import { OrderConfirmationModal, type OrderSummary } from '@/components/OrderConfirmationModal';
 import { ClientsList } from '@/components/ClientsList';
 import { OrdersHistory } from '@/components/OrdersHistory';
+import { Login } from '@/components/Login';
 
 export default function App() {
+  // 🔒 إدارة حالة تسجيل الدخول والأمان
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('pvo_authenticated') === 'true';
+  });
+
   const [activeTab, setActiveTab] = useState<'new-order' | 'inventory' | 'orders-history' | 'clients'>('new-order');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
@@ -105,14 +111,16 @@ export default function App() {
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-    } finally {
+    } fontally {
       setLoading(false);
     }
   }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated, loadData]);
 
   const selectedClient = useMemo(
     () => clients.find((c) => c.id === selectedClientId) || null,
@@ -373,7 +381,6 @@ export default function App() {
         if (ie) throw ie;
 
         if (status === 'confirmed') {
-          // الخصم من المخزون وتحديث المستهلك
           for (const item of cart) {
             if ('lensProductId' in item) {
               const currentQty = stockMap.get(`${item.lensProductId}:${item.sph}`) || 0;
@@ -623,7 +630,7 @@ export default function App() {
 </head>
 <body>
   <div class="header">
-    <div class="logo">متجر البصريات</div>
+    <div class="logo">شركة ومستودع الرؤيا النقية</div>
     <div>فاتورة: ${data.invoiceNumber}</div>
   </div>
   <table>
@@ -639,6 +646,11 @@ export default function App() {
 </body>
 </html>`);
     win.document.close();
+  }
+
+  // 🔒 إذا لم يكن مسجلاً للدخول، يتم عرض شاشة الحماية بكلمة المرور
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
   }
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">جاري تحميل البيانات...</div>;

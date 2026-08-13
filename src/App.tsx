@@ -743,7 +743,7 @@ export default function App() {
           </>
         )}
 
-        {/* Tab 2: واجهة عرض المخزون المحسنة (عدسات + منتجات) */}
+        {/* Tab 2: عرض المخزون */}
         {activeTab === 'inventory' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
@@ -752,7 +752,6 @@ export default function App() {
                 <p className="text-xs text-slate-500 mt-1">عرض توفر الأصناف والعدسات والملحقات الطبية</p>
               </div>
 
-              {/* أزرار التنقل بين أنواع المخزون */}
               <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
                 <button
                   onClick={() => setInventoryType('lenses')}
@@ -773,7 +772,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* عرض مخزون العدسات اللاصقة */}
+            {/* 1. مخزون العدسات */}
             {inventoryType === 'lenses' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -866,6 +865,78 @@ export default function App() {
                 })()}
               </div>
             )}
+
+            {/* 2. مخزون المنتجات والملحقات العامة */}
+            {inventoryType === 'products' && (
+              <div className="overflow-x-auto border rounded-xl">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b text-slate-700">
+                      <th className="p-3 text-sm font-bold">الرمز (SKU)</th>
+                      <th className="p-3 text-sm font-bold">اسم المنتج / الملحق</th>
+                      <th className="p-3 text-sm font-bold">الفئة</th>
+                      <th className="p-3 text-sm font-bold">سعر القطعة</th>
+                      <th className="p-3 text-sm font-bold">المخزون الكلي</th>
+                      <th className="p-3 text-sm font-bold">المباع / المستهلك</th>
+                      <th className="p-3 text-sm font-bold">المتبقي بالمخزن</th>
+                      <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.length > 0 ? (
+                      products.map((p) => {
+                        const totalStock = p.stock_qty || 0;
+                        const consumed = p.consumed_stock || 0;
+                        const availableStock = Math.max(0, totalStock - consumed);
+
+                        const categoryLabels: Record<string, string> = {
+                          solution: 'محلول / قطرة',
+                          frame: 'إطار نظارة',
+                          accessory: 'ملحقات / إكسسوار',
+                        };
+
+                        return (
+                          <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
+                            <td className="p-3 text-sm font-mono text-slate-500">{p.sku || '-'}</td>
+                            <td className="p-3 text-sm font-bold text-slate-800">{p.name}</td>
+                            <td className="p-3 text-sm font-medium text-slate-600">
+                              <span className="bg-slate-100 px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                                {categoryLabels[p.category] || p.category}
+                              </span>
+                            </td>
+                            <td className="p-3 text-sm font-bold text-emerald-700">{formatILS(p.unit_price)}</td>
+                            <td className="p-3 text-sm font-semibold text-slate-600">{totalStock}</td>
+                            <td className="p-3 text-sm font-semibold text-amber-700">{consumed}</td>
+                            <td className="p-3 text-sm font-bold text-sky-800">{availableStock} قطعة</td>
+                            <td className="p-3 text-sm text-center">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
+                                  availableStock === 0
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : availableStock < 5
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-emerald-100 text-emerald-700'
+                                }`}
+                              >
+                                {availableStock === 0 ? 'منتهي' : availableStock < 5 ? 'منخفض' : 'متوفر'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400 text-sm">
+                          لا توجد منتجات مسجلة في النظام حالياً.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
             {/* عرض مخزون المنتجات والملحقات العامة */}
 {inventoryType === 'products' && (

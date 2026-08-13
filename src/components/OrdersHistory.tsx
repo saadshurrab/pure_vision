@@ -6,7 +6,7 @@ interface OrderRecord {
   created_at: string;
   total: number;
   status: 'draft' | 'confirmed';
-  payment_method: 'cash' | 'credit' | 'cheque';
+  payment_method: 'cash' | 'credit' | 'bank';
   notes: string | null;
   client_id: string;
   clients: Client;
@@ -153,22 +153,22 @@ export function OrdersHistory() {
                     })}
                   </td>
                   <td className="p-3">
-  <span
-    className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${
-      o.payment_method === 'cash'
-        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-        : o.payment_method === 'credit'
-        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-        : 'bg-purple-50 text-purple-700 border border-purple-200'
-    }`}
-  >
-    {o.payment_method === 'cash'
-      ? 'نقدي (كاش)'
-      : o.payment_method === 'credit'
-      ? 'آجل (دين)'
-      : 'شيك'}
-  </span>
-</td>
+                    <span
+                      className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${
+                        o.payment_method === 'cash'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : o.payment_method === 'credit'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      {o.payment_method === 'cash'
+                        ? 'نقدي (كاش)'
+                        : o.payment_method === 'credit'
+                        : 'آجل (دين)'
+                        : 'تحويل بنكي'}
+                    </span>
+                  </td>
                   <td className="p-3 font-bold text-sky-700">{formatILS(o.total)}</td>
                   <td className="p-3">
                     <span

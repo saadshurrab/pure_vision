@@ -24,7 +24,7 @@ import { ClientsList } from '@/components/ClientsList';
 import { OrdersHistory } from '@/components/OrdersHistory';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'new-order' | 'orders-history' | 'clients'>('new-order');
+  const [activeTab, setActiveTab] = useState<'new-order' | 'inventory' | 'orders-history' | 'clients'>('new-order');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -32,6 +32,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // إعدادات إنشاء طلب جديد
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedLensId, setSelectedLensId] = useState<string>('');
   const [sphSign, setSphSign] = useState<SphSign>('minus');
@@ -45,10 +46,21 @@ export default function App() {
   const [cart, setCart] = useState<(CartLensItem | CartProductItem)[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit' | 'bank'>('cash');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderSummary | null>(null);
+
+  // حالة النافذة المنبثقة لإكمال وإيحاء الطلب
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+
+  // حالة المرتجعات للعميل
+  const [returnAmount, setReturnAmount] = useState<number>(0);
+  const [returnNote, setReturnNote] = useState('');
+  const [selectedReturnClient, setSelectedReturnClient] = useState<Client | null>(null);
+
+  // حالة تصفية المخزون
+  const [inventoryCategory, setInventoryCategory] = useState<string>('all');
 
   const loadData = useCallback(async () => {
     try {
@@ -117,7 +129,7 @@ export default function App() {
 
   function handleSelectLens(id: string) {
     setSelectedLensId(id);
-    setLensQuantities({}); // تصفير كميات المصفوفة عند اختيار عدسة جديدة
+    setLensQuantities({});
     const variants = lensProducts.filter((l) => l.id === id);
     if (variants.length > 0) {
       const bcs = [...new Set(variants.map((v) => v.bc))].sort();
@@ -149,9 +161,6 @@ export default function App() {
     return m;
   }, [lensStock]);
 
-  /* =========================================================
-     تحديث السلة تلقائياً وتصفير الحقول المباشرة عند التغيير
-     ========================================================= */
   useEffect(() => {
     if (!selectedLens) return;
 
@@ -173,7 +182,6 @@ export default function App() {
         };
       }).filter((item) => item.quantity > 0);
 
-      // الاحتفاظ فقط بالمنتجات الإضافية والعدسات المخصصة isCustom
       const preservedItems = prevCart.filter((item) => {
         const isLensItem = 'lensProductId' in item;
         if (!isLensItem) return true;
@@ -284,6 +292,7 @@ export default function App() {
 
   const creditExceeded = selectedClient ? total > availableCredit : false;
 
+  // حفظ الطلب وخصم الكميات تلقائياً من جدول المخزون
   const persistOrder = useCallback(
     async (status: 'draft' | 'confirmed'): Promise<{ orderId: string; invoiceNumber?: string } | null> => {
       if (!selectedClient) {
@@ -348,9 +357,20 @@ export default function App() {
         const { error: ie } = await supabase.from('order_items').insert(items);
         if (ie) throw ie;
 
-        let invoiceNumber: string | undefined;
-
+        // خصم التلقائي للكميات من جدول المخزون
         if (status === 'confirmed') {
+          for (const item of cart) {
+            if ('lensProductId' in item) {
+              const currentQty = stockMap.get(`${item.lensProductId}:${item.sph}`) || 0;
+              const newQty = Math.max(0, currentQty - item.quantity);
+              await supabase
+                .from('lens_stock')
+                .update({ stock_qty: newQty })
+                .eq('lens_product_id', item.lensProductId)
+                .eq('sph', item.sph);
+            }
+          }
+
           const newBalance = selectedClient.outstanding_balance + total;
           const { error: ue } = await supabase
             .from('clients')
@@ -365,15 +385,19 @@ export default function App() {
             )
           );
 
+          await loadData(); // إعادة التحميل لتحديث جدول المخزون المحلي
+        }
+
+        let invoiceNumber: string | undefined;
+        if (status === 'confirmed') {
           invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
-          const { error: invErr } = await supabase.from('invoices').insert({
+          await supabase.from('invoices').insert({
             order_id: order.id,
             invoice_number: invoiceNumber,
           });
-
-          if (invErr) throw invErr;
         }
 
+        setShowCheckoutModal(false);
         return { orderId: order.id, invoiceNumber };
       } catch (e) {
         setSaveMsg({ type: 'err', text: e instanceof Error ? e.message : 'فشل حفظ الطلب' });
@@ -382,8 +406,35 @@ export default function App() {
         setSaving(false);
       }
     },
-    [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes]
+    [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, loadData]
   );
+
+  // إرجاع المنتج وخصمه من دين العميل
+  async function handleReturnProduct() {
+    if (!selectedReturnClient || returnAmount <= 0) return;
+    try {
+      const updatedBalance = Math.max(0, selectedReturnClient.outstanding_balance - returnAmount);
+      const { error } = await supabase
+        .from('clients')
+        .update({ outstanding_balance: updatedBalance })
+        .eq('id', selectedReturnClient.id);
+
+      if (error) throw error;
+
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === selectedReturnClient.id ? { ...c, outstanding_balance: updatedBalance } : c
+        )
+      );
+
+      setSelectedReturnClient(null);
+      setReturnAmount(0);
+      setReturnNote('');
+      alert('تم خصم قيمة المرتجع بنجاح من حساب العميل');
+    } catch (e) {
+      alert('حدث خطأ أثناء تسجيل المرتجع: ' + (e instanceof Error ? e.message : ''));
+    }
+  }
 
   async function handleSaveDraft() {
     const result = await persistOrder('draft');
@@ -465,13 +516,10 @@ export default function App() {
 
   function printInvoice(data: InvoiceData) {
     const win = window.open('', '_blank', 'width=800,height=600');
-    if (!win) {
-      setSaveMsg({ type: 'err', text: 'تعذر فتح نافذة الطباعة — يرجى السماح بالنوافذ المنبثقة' });
-      return;
-    }
+    if (!win) return;
 
     const pmLabel =
-      data.paymentMethod === 'cash' ? 'نقدي' : data.paymentMethod === 'credit' ? 'دين' : 'شيك';
+      data.paymentMethod === 'cash' ? 'نقدي' : data.paymentMethod === 'credit' ? 'دين' : 'بنكي';
 
     const itemRows = data.items
       .map((item) => {
@@ -481,16 +529,15 @@ export default function App() {
             item.cyl != null
               ? `, CYL ${formatSPH(item.cyl)}${item.axis != null ? `, AXIS ${item.axis}°` : ''}`
               : '';
-          const customTag = item.isCustom ? ' [مقاس خاص]' : '';
           return `<tr>
-            <td>${item.brand}${customTag} (BC ${item.bc}, DIA ${item.dia}, SPH ${sphLabel}${cylAxis})</td>
+            <td>${item.brand} (BC ${item.bc}, DIA ${item.dia}, SPH ${sphLabel}${cylAxis})</td>
             <td style="text-align:center">${item.quantity}</td>
             <td style="text-align:left">${formatILS(item.unitPrice)}</td>
             <td style="text-align:left">${formatILS(item.unitPrice * item.quantity)}</td>
           </tr>`;
         }
         return `<tr>
-          <td>${item.name}${item.sku ? ` (${item.sku})` : ''}</td>
+          <td>${item.name}</td>
           <td style="text-align:center">${item.quantity}</td>
           <td style="text-align:left">${formatILS(item.unitPrice)}</td>
           <td style="text-align:left">${formatILS(item.unitPrice * item.quantity)}</td>
@@ -508,98 +555,35 @@ export default function App() {
   body { padding: 40px; color: #1e293b; max-width: 700px; margin: 0 auto; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #0284c7; padding-bottom: 20px; }
   .logo { font-size: 24px; font-weight: bold; color: #0284c7; }
-  .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
-  .invoice-info { text-align: left; }
-  .invoice-info h2 { font-size: 20px; margin: 0 0 8px; color: #0f172a; }
-  .invoice-info p { margin: 2px 0; font-size: 13px; color: #475569; }
-  .client-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
-  .client-box h3 { margin: 0 0 8px; font-size: 14px; color: #64748b; }
-  .client-box p { margin: 4px 0; font-size: 14px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
   th { background: #f1f5f9; padding: 10px 12px; font-size: 13px; text-align: right; border-bottom: 2px solid #cbd5e1; }
   td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
   .totals { margin-right: auto; width: 280px; }
   .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
   .totals .grand { border-top: 2px solid #0284c7; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: bold; color: #0284c7; }
-  .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-  .pm-badge { display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 4px 12px; font-size: 13px; color: #0369a1; }
 </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <div class="logo">متجر البصريات</div>
-      <div class="subtitle">نظام إدارة الطلبات · جميع الأسعار بالشيكل الإسرائيلي (₪)</div>
-    </div>
-    <div class="invoice-info">
-      <h2>فاتورة مبيعات</h2>
-      <p>رقم الفاتورة: ${data.invoiceNumber}</p>
-      <p>رقم الطلب: ${data.orderId.slice(0, 8)}</p>
-      <p>التاريخ: ${new Date(data.createdAt).toLocaleDateString('ar-EG')}</p>
-    </div>
+    <div class="logo">متجر البصريات</div>
+    <div>فاتورة: ${data.invoiceNumber}</div>
   </div>
-
-  <div class="client-box">
-    <h3>بيانات العميل</h3>
-    <p><strong>${data.client.name}</strong> (${data.client.code})</p>
-    <p>${data.client.city || '—'} · ${data.client.phone || '—'}</p>
-  </div>
-
   <table>
-    <thead>
-      <tr>
-        <th>الصنف</th>
-        <th style="text-align:center">الكمية</th>
-        <th style="text-align:left">سعر الوحدة</th>
-        <th style="text-align:left">الإجمالي</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${itemRows}
-    </tbody>
+    <thead><tr><th>الصنف</th><th style="text-align:center">الكمية</th><th style="text-align:left">السعر</th><th style="text-align:left">الإجمالي</th></tr></thead>
+    <tbody>${itemRows}</tbody>
   </table>
-
   <div class="totals">
-    <div class="row"><span>المجموع الفرعي</span><span>${formatILS(data.subtotal)}</span></div>
-    ${data.discountAmount > 0 ? `<div class="row"><span>الخصم (${data.discountPercent}%)</span><span style="color:#dc2626">- ${formatILS(data.discountAmount)}</span></div>` : ''}
-    <div class="row grand"><span>الإجمالي النهائي</span><span>${formatILS(data.total)}</span></div>
+    <div class="row"><span>المجموع</span><span>${formatILS(data.subtotal)}</span></div>
+    <div class="row grand"><span>الإجمالي</span><span>${formatILS(data.total)}</span></div>
   </div>
-
-  <div style="margin-top: 20px;">
-    <span class="pm-badge">طريقة الدفع: ${pmLabel}</span>
-  </div>
-
-  ${data.notes ? `<p style="margin-top: 20px; font-size: 13px; color: #475569;"><strong>ملاحظات:</strong> ${data.notes}</p>` : ''}
-
-  <div class="footer">
-    شكراً لتعاملكم معنا · هذه الفاتورة صادرة إلكترونياً من نظام إدارة الطلبات
-  </div>
-
-  <script>
-    window.onload = function() { window.print(); }
-  </script>
+  <p>طريقة الدفع: ${pmLabel}</p>
+  <script>window.onload = function() { window.print(); }</script>
 </body>
 </html>`);
     win.document.close();
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-500 text-lg">جاري التحميل...</div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-red-600 text-lg bg-red-50 border border-red-200 rounded-xl px-6 py-4">
-          {loadError}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-8 text-center">جاري التحميل...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
@@ -608,36 +592,39 @@ export default function App() {
         <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
           <button
             onClick={() => setActiveTab('new-order')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'new-order'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
+              activeTab === 'new-order' ? 'bg-sky-600 text-white' : 'text-slate-600'
             }`}
           >
             🛒 إنشاء طلب جديد
           </button>
           <button
+            onClick={() => setActiveTab('inventory')}
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
+              activeTab === 'inventory' ? 'bg-sky-600 text-white' : 'text-slate-600'
+            }`}
+          >
+            📦 عرض المخزون
+          </button>
+          <button
             onClick={() => setActiveTab('orders-history')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'orders-history'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
+              activeTab === 'orders-history' ? 'bg-sky-600 text-white' : 'text-slate-600'
             }`}
           >
             📋 سجل الطلبات
           </button>
           <button
             onClick={() => setActiveTab('clients')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg transition-all ${
-              activeTab === 'clients'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
+              activeTab === 'clients' ? 'bg-sky-600 text-white' : 'text-slate-600'
             }`}
           >
-            👥 دليل العملاء
+            👥 دليل العملاء والمرتجعات
           </button>
         </div>
 
+        {/* tab 1: إنشاء طلب جديد */}
         {activeTab === 'new-order' && (
           <>
             <ClientSelector
@@ -668,17 +655,17 @@ export default function App() {
                     isToric={isToric}
                     onToricChange={(v) => {
                       setIsToric(v);
-                      setLensQuantities({}); // تصفير عند تحويل وضع Toric
+                      setLensQuantities({});
                     }}
                     selectedCYL={selectedCYL}
                     selectedAXIS={selectedAXIS}
                     onCYLChange={(v) => {
                       setSelectedCYL(v);
-                      setLensQuantities({}); // تصفير عند تعديل CYL
+                      setLensQuantities({});
                     }}
                     onAXISChange={(v) => {
                       setSelectedAXIS(v);
-                      setLensQuantities({}); // تصفير عند تعديل AXIS
+                      setLensQuantities({});
                     }}
                     customPrescription={customPrescription}
                     onCustomPrescriptionChange={setCustomPrescription}
@@ -686,6 +673,7 @@ export default function App() {
                   />
                   <AdditionalItems products={products} onAdd={addProduct} />
                 </div>
+
                 <div className="lg:col-span-1">
                   <Cart
                     cart={cart}
@@ -700,13 +688,13 @@ export default function App() {
                     paymentMethod={paymentMethod}
                     onDiscountChange={setDiscountPercent}
                     onNotesChange={setNotes}
-                    onPaymentChange={setPaymentMethod}
+                    onPaymentChange={(pm) => setPaymentMethod(pm as 'cash' | 'credit' | 'bank')}
                     onQtyChange={updateCartQty}
                     onRemove={removeCartItem}
                     onClear={clearCart}
-                    onSaveInvoice={handleSaveInvoice}
-                    onSaveDraft={handleSaveDraft}
-                    onSaveOrder={handleSaveOrder}
+                    onSaveInvoice={() => setShowCheckoutModal(true)}
+                    onSaveDraft={() => setShowCheckoutModal(true)}
+                    onSaveOrder={() => setShowCheckoutModal(true)}
                     saving={saving}
                     saveMsg={saveMsg}
                   />
@@ -716,10 +704,211 @@ export default function App() {
           </>
         )}
 
+        {/* tab 2: عرض المخزون مع خيارات تصفية حسب النوع */}
+        {activeTab === 'inventory' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">جدول حالة المخزون الحالي</h2>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-slate-600">تصفية حسب النوع:</label>
+                <select
+                  value={inventoryCategory}
+                  onChange={(e) => setInventoryCategory(e.target.value)}
+                  className="p-2 border rounded-lg text-sm bg-slate-50"
+                >
+                  <option value="all">جميع الأنواع</option>
+                  {lensProducts.map((lp) => (
+                    <option key={lp.id} value={lp.id}>
+                      {lp.brand} (BC: {lp.bc} / DIA: {lp.dia})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 border-b">
+                    <th className="p-3 text-sm font-bold">اسم المنتج / الصنف</th>
+                    <th className="p-3 text-sm font-bold">SPH / الخواص</th>
+                    <th className="p-3 text-sm font-bold">الكمية المتوفرة بالمخزن</th>
+                    <th className="p-3 text-sm font-bold">سعر الوحدة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lensStock
+                    .filter((s) => inventoryCategory === 'all' || s.lens_product_id === inventoryCategory)
+                    .map((s) => {
+                      const lp = lensProducts.find((l) => l.id === s.lens_product_id);
+                      return (
+                        <tr key={s.id} className="border-b hover:bg-slate-50">
+                          <td className="p-3 text-sm font-medium">{lp?.brand || 'عدسة'}</td>
+                          <td className="p-3 text-sm text-slate-600">SPH: {formatSPH(s.sph)}</td>
+                          <td className="p-3 text-sm">
+                            <span
+                              className={`px-2 py-1 rounded font-bold ${
+                                s.stock_qty < 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              {s.stock_qty} قطعة
+                            </span>
+                          </td>
+                          <td className="p-3 text-sm">{formatILS(lp?.unit_price || 0)}</td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {activeTab === 'clients' && <ClientsList clients={clients} onClientAdded={loadData} />}
+        {/* tab 4: دليل العملاء + المرتجعات */}
+        {activeTab === 'clients' && (
+          <div className="space-y-6">
+            {selectedReturnClient && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                <h3 className="font-bold text-amber-800 mb-2">
+                  تسجيل مرتجع للعميل: {selectedReturnClient.name}
+                </h3>
+                <p className="text-sm text-amber-700 mb-4">
+                  الدين الحالي المترتب على العميل: {formatILS(selectedReturnClient.outstanding_balance)}
+                </p>
+                <div className="flex gap-4 items-center">
+                  <input
+                    type="number"
+                    placeholder="مبلغ المرتجع بالـ ₪"
+                    value={returnAmount || ''}
+                    onChange={(e) => setReturnAmount(Number(e.target.value))}
+                    className="p-2 border rounded-lg text-sm bg-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder="ملاحظات المرتجع..."
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    className="p-2 border rounded-lg text-sm bg-white flex-1"
+                  />
+                  <button
+                    onClick={handleReturnProduct}
+                    className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-700"
+                  >
+                    خصم المرتجع من الدين
+                  </button>
+                  <button
+                    onClick={() => setSelectedReturnClient(null)}
+                    className="text-slate-500 text-sm hover:underline"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white p-4 rounded-xl shadow-sm border">
+              <h3 className="font-bold mb-4">قائمة العملاء المباشرة</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {clients.map((c) => (
+                  <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50">
+                    <div>
+                      <div className="font-bold text-slate-800">{c.name}</div>
+                      <div className="text-xs text-slate-500">{c.phone || 'بدون هاتف'}</div>
+                      <div className="text-sm mt-1 font-semibold text-rose-600">
+                        الدين: {formatILS(c.outstanding_balance)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedReturnClient(c)}
+                      className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-2 rounded-lg font-bold"
+                    >
+                      ↩ تسجيل مرتجع
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <ClientsList clients={clients} onClientAdded={loadData} />
+          </div>
+        )}
       </main>
+
+      {/* نافذة خيارات حفظ وتأكيد الطلب Modal رؤية السلة بالخلفية */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">
+              تأكيد خيارات حفظ وإصدار الطلب
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">طريقة الدفع:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`py-2 text-xs font-bold rounded-lg border ${
+                      paymentMethod === 'cash' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
+                    }`}
+                  >
+                    💵 نقدي
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('credit')}
+                    className={`py-2 text-xs font-bold rounded-lg border ${
+                      paymentMethod === 'credit' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
+                    }`}
+                  >
+                    💳 دين
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('bank')}
+                    className={`py-2 text-xs font-bold rounded-lg border ${
+                      paymentMethod === 'bank' ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50'
+                    }`}
+                  >
+                    🏦 بنكي
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t space-y-2">
+                <button
+                  onClick={handleSaveInvoice}
+                  disabled={saving}
+                  className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition"
+                >
+                  🖨️ حفظ وطباعة الفاتورة
+                </button>
+                <button
+                  onClick={handleSaveOrder}
+                  disabled={saving}
+                  className="w-full bg-sky-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-sky-700 transition"
+                >
+                  ✅ حفظ كطلب مؤكد
+                </button>
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={saving}
+                  className="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-200 transition"
+                >
+                  📝 حفظ كمسودة
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowCheckoutModal(false)}
+                className="w-full text-center text-xs text-slate-400 mt-2 hover:underline"
+              >
+                إلغاء والعودة للسلة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <OrderConfirmationModal
         summary={orderSummary}

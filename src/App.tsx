@@ -117,6 +117,7 @@ export default function App() {
 
   function handleSelectLens(id: string) {
     setSelectedLensId(id);
+    setLensQuantities({}); // تصفير كميات المصفوفة عند اختيار عدسة جديدة
     const variants = lensProducts.filter((l) => l.id === id);
     if (variants.length > 0) {
       const bcs = [...new Set(variants.map((v) => v.bc))].sort();
@@ -149,13 +150,12 @@ export default function App() {
   }, [lensStock]);
 
   /* =========================================================
-     الخطوة 3 (المُعدّلة): مزامنة المصفوفة الحالية (Matrix) مع السلة
+     تحديث السلة تلقائياً وتصفير الحقول المباشرة عند التغيير
      ========================================================= */
   useEffect(() => {
     if (!selectedLens) return;
 
     setCart((prevCart) => {
-      // 1. تجميع كل عناصر Matrix الحالية التي أطرافها > 0
       const key = (sph: number) => `${selectedLens.id}:${sph}`;
       const updatedMatrixItems: CartLensItem[] = SPH_ALL.map((sph) => {
         const qty = lensQuantities[key(sph)] || 0;
@@ -173,15 +173,13 @@ export default function App() {
         };
       }).filter((item) => item.quantity > 0);
 
-      // 2. استبعاد جميع عناصر Matrix السابقة (أي عنصر عدسة ليس custom)
-      // والاحتفاظ فقط بالمنتجات الإضافية وبنود المقاسات الخاصة isCustom
+      // الاحتفاظ فقط بالمنتجات الإضافية والعدسات المخصصة isCustom
       const preservedItems = prevCart.filter((item) => {
         const isLensItem = 'lensProductId' in item;
-        if (!isLensItem) return true; // منتج إضافي (Product)
-        return item.isCustom;        // عدسة مخصصة (Custom Prescription)
+        if (!isLensItem) return true;
+        return item.isCustom;
       });
 
-      // 3. دمج العناصر المحفوظة مع عناصر المصفوفة المحدّثة
       return [...preservedItems, ...updatedMatrixItems];
     });
   }, [lensQuantities, selectedLens, isToric, selectedCYL, selectedAXIS]);
@@ -198,14 +196,7 @@ export default function App() {
   }
 
   function clearLensGrid() {
-    if (!selectedLens) return;
-    setLensQuantities((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((k) => {
-        if (k.startsWith(`${selectedLens.id}:`)) delete next[k];
-      });
-      return next;
-    });
+    setLensQuantities({});
   }
 
   function addCustomPrescription() {
@@ -614,7 +605,6 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
       <Header />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
-        {/* Navigation Tabs */}
         <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
           <button
             onClick={() => setActiveTab('new-order')}
@@ -648,7 +638,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* View tab content */}
         {activeTab === 'new-order' && (
           <>
             <ClientSelector
@@ -677,11 +666,20 @@ export default function App() {
                     availableBCs={availableBCs}
                     availableDIAs={availableDIAs}
                     isToric={isToric}
-                    onToricChange={setIsToric}
+                    onToricChange={(v) => {
+                      setIsToric(v);
+                      setLensQuantities({}); // تصفير عند تحويل وضع Toric
+                    }}
                     selectedCYL={selectedCYL}
                     selectedAXIS={selectedAXIS}
-                    onCYLChange={setSelectedCYL}
-                    onAXISChange={setSelectedAXIS}
+                    onCYLChange={(v) => {
+                      setSelectedCYL(v);
+                      setLensQuantities({}); // تصفير عند تعديل CYL
+                    }}
+                    onAXISChange={(v) => {
+                      setSelectedAXIS(v);
+                      setLensQuantities({}); // تصفير عند تعديل AXIS
+                    }}
                     customPrescription={customPrescription}
                     onCustomPrescriptionChange={setCustomPrescription}
                     onAddCustomPrescription={addCustomPrescription}

@@ -28,7 +28,7 @@ interface Props {
   discountPercent: number;
   discountAmount: number;
   total: number;
-  client: Client | null; // تم إزالة props الخاصة بالرصيد
+  client: Client | null;
   notes: string;
   paymentMethod: PaymentMethod;
   onDiscountChange: (v: number) => void;
@@ -79,9 +79,9 @@ export function Cart({
   const itemCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
 
   return (
-    <div className="lg:sticky lg:top-4 h-full">
-      {/* تم تعديل الارتفاع ليأخذ مساحة أكبر ولا يبدو صغيراً */}
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[calc(100vh-2rem)] min-h-[600px]">
+    <div className="lg:sticky lg:top-4 transition-all duration-300">
+      {/* Container يتمدد ديناميكياً بحسب المحتوى h-auto مع min-h مناسب */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-auto min-h-[500px] transition-all duration-300">
         
         {/* Header */}
         <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
@@ -106,10 +106,10 @@ export function Cart({
           )}
         </div>
 
-        {/* Items List */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/30">
+        {/* Items List - يتوسع بشكل تلقائي بدون إجبار على التمرير الداخلي إلا في حالة الشاشات الطويلة جداً */}
+        <div className="px-4 py-4 space-y-3 bg-slate-50/30 flex-1">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400">
+            <div className="h-64 flex flex-col items-center justify-center text-slate-400">
               <ShoppingCart className="w-16 h-16 mb-3 opacity-20 text-slate-400" />
               <p className="text-base font-semibold text-slate-500">السلة فارغة حالياً</p>
               <p className="text-sm mt-1 text-slate-400">أضف عناصر من المصفوفة أو المنتجات</p>
@@ -284,7 +284,6 @@ export function Cart({
           )}
 
           <div className="space-y-2.5 pt-2">
-            {/* تمت إزالة شرط creditExceeded من الأزرار */}
             <button
               onClick={onSaveOrder}
               disabled={cart.length === 0 || saving}

@@ -217,8 +217,8 @@ export function SphMatrix({
         </button>
       </div>
 
-      {/* Lens specs controls */}
-      <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+      {/* Lens specs controls (تم إخفاء BC و DIA) */}
+      <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center gap-3 flex-wrap justify-between">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-slate-500">العلامة</label>
           <select
@@ -233,36 +233,9 @@ export function SphMatrix({
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">BC</label>
-          <select
-            value={selectedBC}
-            onChange={(e) => onBCChange(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            {availableBCs.map((bc) => (
-              <option key={bc} value={bc}>
-                {bc}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">DIA</label>
-          <select
-            value={selectedDIA}
-            onChange={(e) => onDIAChange(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            {availableDIAs.map((dia) => (
-              <option key={dia} value={dia}>
-                {dia}
-              </option>
-            ))}
-          </select>
-        </div>
+        
         {selected && (
-          <span className="text-xs text-slate-500 mr-auto">
+          <span className="text-xs text-slate-500">
             السعر: <strong className="text-slate-700">{formatILS(selected.unit_price)}</strong> / علبة
           </span>
         )}

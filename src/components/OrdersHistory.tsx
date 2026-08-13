@@ -16,6 +16,7 @@ export function OrdersHistory() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
+  const [confirmingDraftId, setConfirmingDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -68,6 +69,41 @@ export function OrdersHistory() {
     }
   }
 
+  // تحويل المسودة إلى طلب مؤكد
+  async function handleConfirmDraft(order: OrderRecord) {
+    if (!order.clients) return;
+    setConfirmingDraftId(order.id);
+
+    try {
+      // 1. تحديث حالة الطلب إلى مؤكد
+      const { error: orderErr } = await supabase
+        .from('orders')
+        .update({ status: 'confirmed' })
+        .eq('id', order.id);
+
+      if (orderErr) throw orderErr;
+
+      // 2. إذا كانت طريقة الدفع دين، تمت إضافتها لدين العميل
+      if (order.payment_method === 'credit') {
+        const currentBalance = order.clients.outstanding_balance;
+        const newBalance = currentBalance + order.total;
+
+        const { error: clientErr } = await supabase
+          .from('clients')
+          .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
+          .eq('id', order.client_id);
+
+        if (clientErr) throw clientErr;
+      }
+
+      await fetchOrders();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'حدث خطأ أثناء تأكيد المسودة');
+    } finally {
+      setConfirmingDraftId(null);
+    }
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل سجل الطلبات...</div>;
 
   return (
@@ -100,11 +136,13 @@ export function OrdersHistory() {
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {orders.map((o) => {
+              const isDraft = o.status === 'draft';
               const isCredit = o.payment_method === 'credit';
               const isPaying = payingOrderId === o.id;
+              const isConfirming = confirmingDraftId === o.id;
 
               return (
-                <tr key={o.id} className="hover:bg-slate-50">
+                <tr key={o.id} className={isDraft ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-slate-50'}>
                   <td className="p-3 font-mono text-slate-500">{o.id.slice(0, 8)}</td>
                   <td className="p-3 font-semibold text-slate-800">{o.clients?.name || '—'}</td>
                   <td className="p-3 text-slate-500">
@@ -127,24 +165,32 @@ export function OrdersHistory() {
                       {o.payment_method === 'cash'
                         ? 'نقدي (كاش)'
                         : o.payment_method === 'credit'
-                        ? 'آجل (دين)'
+                        : 'آجل (دين)'
                         : 'شيك'}
                     </span>
                   </td>
                   <td className="p-3 font-bold text-sky-700">{formatILS(o.total)}</td>
                   <td className="p-3">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        o.status === 'confirmed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-600'
+                      className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                        isDraft
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
-                      {o.status === 'confirmed' ? 'مؤكد' : 'مسودة'}
+                      {isDraft ? '📝 مسودة' : '✅ مؤكد'}
                     </span>
                   </td>
                   <td className="p-3 text-center">
-                    {isCredit ? (
+                    {isDraft ? (
+                      <button
+                        onClick={() => handleConfirmDraft(o)}
+                        disabled={isConfirming}
+                        className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto shadow-sm"
+                      >
+                        {isConfirming ? 'جاري التأكيد...' : '⚡ تأكيد المسودة'}
+                      </button>
+                    ) : isCredit ? (
                       <button
                         onClick={() => handleMarkAsPaid(o)}
                         disabled={isPaying}
@@ -153,7 +199,7 @@ export function OrdersHistory() {
                         {isPaying ? 'جاري التحصيل...' : '✅ تم التحصيل (واصل)'}
                       </button>
                     ) : (
-                      <span className="text-xs text-slate-400">مدفوع بالكامل ✨</span>
+                      <span className="text-xs text-slate-400 font-medium">مدفوع بالكامل ✨</span>
                     )}
                   </td>
                 </tr>

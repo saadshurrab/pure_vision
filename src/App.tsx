@@ -53,7 +53,7 @@ export default function App() {
   // نافذة تأكيد الطلب
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-  // إعدادات مرتجعات العملاء (بالمنتجات)
+  // إعدادات مرتجعات العملاء
   const [selectedReturnClient, setSelectedReturnClient] = useState<Client | null>(null);
   const [returnItemType, setReturnItemType] = useState<'product' | 'lens'>('product');
   const [selectedReturnProductId, setSelectedReturnProductId] = useState<string>('');
@@ -62,7 +62,8 @@ export default function App() {
   const [returnQty, setReturnQty] = useState<number>(1);
   const [returnNote, setReturnNote] = useState('');
 
-  // فلتر عرض المخزون حسب النوع
+  // إعدادات عرض المخزون (نوع المخزون + العدسة المحددة)
+  const [inventoryType, setInventoryType] = useState<'lenses' | 'products'>('lenses');
   const [inventoryCategory, setInventoryCategory] = useState<string>('');
 
   const loadData = useCallback(async () => {
@@ -422,7 +423,6 @@ export default function App() {
     [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, loadData]
   );
 
-  // حساب القيمة المالية التلقائية للمنتج المرجع
   const calculatedReturnTotal = useMemo(() => {
     if (returnQty <= 0) return 0;
     if (returnItemType === 'product') {
@@ -434,7 +434,6 @@ export default function App() {
     }
   }, [returnItemType, selectedReturnProductId, selectedReturnLensId, returnQty, products, lensProducts]);
 
-  // تنفيذ عملية إرجاع المنتج (إعادة للمخزون + خصم القيمة من دين العميل)
   async function handleReturnProduct() {
     if (!selectedReturnClient || returnQty <= 0 || calculatedReturnTotal <= 0) {
       alert('يرجى تحديد المنتج والكمية بشكل صحيح');
@@ -442,7 +441,6 @@ export default function App() {
     }
 
     try {
-      // 1. خصم قيمة المنتج المرجع من حساب دين العميل
       const updatedBalance = Math.max(0, selectedReturnClient.outstanding_balance - calculatedReturnTotal);
       const { error: clientError } = await supabase
         .from('clients')
@@ -451,7 +449,6 @@ export default function App() {
 
       if (clientError) throw clientError;
 
-      // 2. إعادة الكمية المرجعة إلى جدول المخزون (إذا كانت عدسة)
       if (returnItemType === 'lens' && selectedReturnLensId) {
         const currentQty = stockMap.get(`${selectedReturnLensId}:${returnSph}`) || 0;
         await supabase
@@ -467,7 +464,7 @@ export default function App() {
         )
       );
 
-      await loadData(); // تحديث البيانات المحلية والمخزون
+      await loadData();
 
       setSelectedReturnClient(null);
       setReturnQty(1);
@@ -746,104 +743,167 @@ export default function App() {
           </>
         )}
 
-        {/* Tab 2: واجهة عرض المخزون */}
+        {/* Tab 2: واجهة عرض المخزون المحسنة (عدسات + منتجات) */}
         {activeTab === 'inventory' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">📦 حالة المخزون حسب النوع</h2>
-                <p className="text-xs text-slate-500 mt-1">اختر نوع العدسة للتعرف على جدول مقاساتها والكميات المتوفرة بها</p>
+                <h2 className="text-xl font-bold text-slate-800">📦 عرض وإدارة المخزون</h2>
+                <p className="text-xs text-slate-500 mt-1">عرض توفر الأصناف والعدسات والملحقات الطبية</p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">اختر النوع:</label>
-                <select
-                  value={inventoryCategory || (lensProducts[0]?.id || '')}
-                  onChange={(e) => setInventoryCategory(e.target.value)}
-                  className="p-2.5 border border-slate-300 rounded-lg text-sm bg-slate-50 font-bold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              {/* أزرار التنقل بين أنواع المخزون */}
+              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setInventoryType('lenses')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition ${
+                    inventoryType === 'lenses' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  {lensProducts.map((lp) => (
-                    <option key={lp.id} value={lp.id}>
-                      {lp.brand} (BC: {lp.bc} / DIA: {lp.dia})
-                    </option>
-                  ))}
-                </select>
+                  👁️ مخزون العدسات
+                </button>
+                <button
+                  onClick={() => setInventoryType('products')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition ${
+                    inventoryType === 'products' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  👓 المنتجات والملحقات
+                </button>
               </div>
             </div>
 
-            {(() => {
-              const currentLensId = inventoryCategory || lensProducts[0]?.id;
-              const selectedProduct = lensProducts.find((l) => l.id === currentLensId);
+            {/* عرض مخزون العدسات اللاصقة */}
+            {inventoryType === 'lenses' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">اختر ماركة/نوع العدسة:</label>
+                  <select
+                    value={inventoryCategory || (lensProducts[0]?.id || '')}
+                    onChange={(e) => setInventoryCategory(e.target.value)}
+                    className="p-2.5 border border-slate-300 rounded-lg text-sm bg-slate-50 font-bold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    {lensProducts.map((lp) => (
+                      <option key={lp.id} value={lp.id}>
+                        {lp.brand} (BC: {lp.bc} / DIA: {lp.dia})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              if (!selectedProduct) {
-                return <div className="text-center text-slate-500 py-8">يرجى اختيار نوع العدسة من القائمة أعلاه</div>;
-              }
+                {(() => {
+                  const currentLensId = inventoryCategory || lensProducts[0]?.id;
+                  const selectedProduct = lensProducts.find((l) => l.id === currentLensId);
 
-              const filteredStock = lensStock.filter((s) => s.lens_product_id === selectedProduct.id);
+                  if (!selectedProduct) {
+                    return <div className="text-center text-slate-500 py-8">يرجى اختيار نوع العدسة من القائمة أعلاه</div>;
+                  }
 
-              return (
-                <div className="space-y-4">
-                  <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4">
-                    <div>
-                      <span className="text-xs text-sky-600 font-bold block">النوع المحدد حالياً:</span>
-                      <h3 className="text-lg font-bold text-sky-900">{selectedProduct.brand}</h3>
-                    </div>
-                    <div className="flex gap-3 text-xs font-semibold text-sky-800">
-                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">BC: {selectedProduct.bc}</span>
-                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">DIA: {selectedProduct.dia}</span>
-                      <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">السعر: {formatILS(selectedProduct.unit_price)}</span>
-                    </div>
-                  </div>
+                  const filteredStock = lensStock.filter((s) => s.lens_product_id === selectedProduct.id);
 
-                  <div className="overflow-x-auto border rounded-xl">
-                    <table className="w-full text-right border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 border-b text-slate-700">
-                          <th className="p-3 text-sm font-bold">قياس (SPH)</th>
-                          <th className="p-3 text-sm font-bold">الكمية المتوفرة بالمخزن</th>
-                          <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredStock.length > 0 ? (
-                          filteredStock
-                            .sort((a, b) => a.sph - b.sph)
-                            .map((s) => (
-                              <tr key={s.id} className="border-b hover:bg-slate-50 transition-colors">
-                                <td className="p-3 text-sm font-bold dir-ltr text-right">
-                                  {formatSPH(s.sph)}
-                                </td>
-                                <td className="p-3 text-sm font-semibold">
-                                  {s.stock_qty} قطعة
-                                </td>
-                                <td className="p-3 text-sm text-center">
-                                  <span
-                                    className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
-                                      s.stock_qty === 0
-                                        ? 'bg-rose-100 text-rose-700'
-                                        : s.stock_qty < 5
-                                        ? 'bg-amber-100 text-amber-700'
-                                        : 'bg-emerald-100 text-emerald-700'
-                                    }`}
-                                  >
-                                    {s.stock_qty === 0 ? 'منتهي' : s.stock_qty < 5 ? 'منخفض' : 'متوفر'}
-                                  </span>
+                  return (
+                    <div className="space-y-4">
+                      <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4">
+                        <div>
+                          <span className="text-xs text-sky-600 font-bold block">النوع المحدد حالياً:</span>
+                          <h3 className="text-lg font-bold text-sky-900">{selectedProduct.brand}</h3>
+                        </div>
+                        <div className="flex gap-3 text-xs font-semibold text-sky-800">
+                          <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">BC: {selectedProduct.bc}</span>
+                          <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">DIA: {selectedProduct.dia}</span>
+                          <span className="bg-white px-3 py-1.5 rounded-md border border-sky-200">السعر: {formatILS(selectedProduct.unit_price)}</span>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border rounded-xl">
+                        <table className="w-full text-right border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 border-b text-slate-700">
+                              <th className="p-3 text-sm font-bold">قياس (SPH)</th>
+                              <th className="p-3 text-sm font-bold">الكمية المتوفرة بالمخزن</th>
+                              <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredStock.length > 0 ? (
+                              filteredStock
+                                .sort((a, b) => a.sph - b.sph)
+                                .map((s) => (
+                                  <tr key={s.id} className="border-b hover:bg-slate-50 transition-colors">
+                                    <td className="p-3 text-sm font-bold dir-ltr text-right">
+                                      {formatSPH(s.sph)}
+                                    </td>
+                                    <td className="p-3 text-sm font-semibold">
+                                      {s.stock_qty} قطعة
+                                    </td>
+                                    <td className="p-3 text-sm text-center">
+                                      <span
+                                        className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
+                                          s.stock_qty === 0
+                                            ? 'bg-rose-100 text-rose-700'
+                                            : s.stock_qty < 5
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-emerald-100 text-emerald-700'
+                                        }`}
+                                      >
+                                        {s.stock_qty === 0 ? 'منتهي' : s.stock_qty < 5 ? 'منخفض' : 'متوفر'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                            ) : (
+                              <tr>
+                                <td colSpan={3} className="p-6 text-center text-slate-400 text-sm">
+                                  لا توجد بيانات مخزون مسجلة لهذا النوع حالياً.
                                 </td>
                               </tr>
-                            ))
-                        ) : (
-                          <tr>
-                            <td colSpan={3} className="p-6 text-center text-slate-400 text-sm">
-                              لا توجد بيانات مخزون مسجلة لهذا النوع حالياً.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })()}
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* عرض مخزون المنتجات والملحقات العامة */}
+            {inventoryType === 'products' && (
+              <div className="overflow-x-auto border rounded-xl">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b text-slate-700">
+                      <th className="p-3 text-sm font-bold">الرمز (SKU)</th>
+                      <th className="p-3 text-sm font-bold">اسم المنتج / الملحق</th>
+                      <th className="p-3 text-sm font-bold">الفئة</th>
+                      <th className="p-3 text-sm font-bold">سعر القطعة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.length > 0 ? (
+                      products.map((p) => (
+                        <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
+                          <td className="p-3 text-sm font-mono text-slate-500">{p.sku || '-'}</td>
+                          <td className="p-3 text-sm font-bold text-slate-800">{p.name}</td>
+                          <td className="p-3 text-sm font-medium text-slate-600">
+                            <span className="bg-slate-100 px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                              {p.category || 'عام'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-sm font-bold text-emerald-700">{formatILS(p.unit_price)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-center text-slate-400 text-sm">
+                          لا توجد منتجات مسجلة في النظام حالياً.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -872,7 +932,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* واجهة اختيار نوع المرتجع (عدسة أم منتج آخر) */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                   <div>
                     <label className="block text-xs font-bold text-amber-900 mb-1">نوع المرجع:</label>
@@ -947,7 +1006,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* تفاصيل المجموع والزر */}
                 <div className="flex flex-wrap justify-between items-center bg-amber-100/70 p-3 rounded-lg border border-amber-200">
                   <div className="text-sm font-bold text-amber-900">
                     إجمالي قيمة المرجع المخصومة تلقائياً: <span className="text-emerald-700 font-extrabold text-base">{formatILS(calculatedReturnTotal)}</span>
@@ -991,7 +1049,7 @@ export default function App() {
         )}
       </main>
 
-      {/* النافذة المنبثقة Modal لحفظ/إكمال الطلب لرؤية السلة بالخلفية */}
+      {/* النافذة المنبثقة Modal */}
       {showCheckoutModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">

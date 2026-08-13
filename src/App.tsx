@@ -148,12 +148,16 @@ export default function App() {
     return m;
   }, [lensStock]);
 
+  /* =========================================================
+     الخطوة 3 (المُعدّلة): مزامنة المصفوفة الحالية (Matrix) مع السلة
+     ========================================================= */
   useEffect(() => {
     if (!selectedLens) return;
 
     setCart((prevCart) => {
+      // 1. تجميع كل عناصر Matrix الحالية التي أطرافها > 0
       const key = (sph: number) => `${selectedLens.id}:${sph}`;
-      const updatedLensItems: CartLensItem[] = SPH_ALL.map((sph) => {
+      const updatedMatrixItems: CartLensItem[] = SPH_ALL.map((sph) => {
         const qty = lensQuantities[key(sph)] || 0;
         return {
           lensProductId: selectedLens.id,
@@ -169,14 +173,16 @@ export default function App() {
         };
       }).filter((item) => item.quantity > 0);
 
-      const unmanagedItems = prevCart.filter(
-        (item) =>
-          !('lensProductId' in item) ||
-          item.lensProductId !== selectedLens.id ||
-          item.isCustom
-      );
+      // 2. استبعاد جميع عناصر Matrix السابقة (أي عنصر عدسة ليس custom)
+      // والاحتفاظ فقط بالمنتجات الإضافية وبنود المقاسات الخاصة isCustom
+      const preservedItems = prevCart.filter((item) => {
+        const isLensItem = 'lensProductId' in item;
+        if (!isLensItem) return true; // منتج إضافي (Product)
+        return item.isCustom;        // عدسة مخصصة (Custom Prescription)
+      });
 
-      return [...unmanagedItems, ...updatedLensItems];
+      // 3. دمج العناصر المحفوظة مع عناصر المصفوفة المحدّثة
+      return [...preservedItems, ...updatedMatrixItems];
     });
   }, [lensQuantities, selectedLens, isToric, selectedCYL, selectedAXIS]);
 

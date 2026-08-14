@@ -22,6 +22,7 @@ import { OrderConfirmationModal, type OrderSummary } from '@/components/OrderCon
 import { ClientsList } from '@/components/ClientsList';
 import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
+import { StatsOverview } from '@/components/StatsOverview';
 
 export default function App() {
   // 🔒 إدارة حالة تسجيل الدخول والأمان
@@ -34,6 +35,7 @@ export default function App() {
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [lensStock, setLensStock] = useState<LensStock[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -74,11 +76,12 @@ export default function App() {
 
   const loadData = useCallback(async () => {
     try {
-      const [c, l, p, ls] = await Promise.all([
+      const [c, l, p, ls, ord] = await Promise.all([
         supabase.from('clients').select('*').eq('active', true).order('name'),
         supabase.from('lens_products').select('*').eq('active', true).order('brand'),
         supabase.from('products').select('*').eq('active', true).order('category, name'),
         supabase.from('lens_stock').select('*'),
+        supabase.from('orders').select('*'),
       ]);
 
       if (c.error) throw c.error;
@@ -90,6 +93,7 @@ export default function App() {
       setLensProducts(l.data || []);
       setProducts(p.data || []);
       setLensStock(ls.data || []);
+      setOrders(ord.data || []);
 
       if (l.data && l.data.length > 0) {
         if (!selectedLensId) {
@@ -655,6 +659,10 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
       <Header />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
+        
+        {/* 📊 بطاقات الإحصائيات الشاملة */}
+        <StatsOverview orders={orders} />
+
         <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
           <button
             onClick={() => setActiveTab('new-order')}

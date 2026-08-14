@@ -1,234 +1,168 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  TrendingUp, 
-  AlertTriangle, 
-  ShoppingCart, 
-  Users, 
-  ArrowUpRight, 
-  PlusCircle, 
-  FileText, 
-  Truck, 
-  Calendar,
-  RefreshCw
-} from 'lucide-react';
-import { supabase, formatILS } from '@/lib/supabase';
+import React from 'react';
+import { formatILS } from '@/lib/supabase';
 
-export function DashboardHome() {
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+interface DashboardHomeProps {
+  orders: any[];
+  clientsCount: number;
+  products?: any[];
+  lensStock?: any[];
+  onNavigate: (tab: 'new-order' | 'inventory' | 'orders-history' | 'clients') => void;
+}
 
-  const [stats, setStats] = useState({
-    todaySales: 0,
-    todayOrdersCount: 0,
-    pendingOrdersCount: 0,
-    lowStockCount: 0,
-    activeClientsCount: 0,
+export const DashboardHome: React.FC<DashboardHomeProps> = ({
+  orders,
+  clientsCount,
+  products = [],
+  lensStock = [],
+  onNavigate,
+}) => {
+  // حساب المبيعات والطلبات
+  const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const todayOrders = orders.filter((o) => {
+    if (!o.created_at) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return o.created_at.startsWith(today);
   });
 
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  // حساب المنتجات منخفضة المخزون (أقل من 5 قطع)
+  const lowStockProductsCount = products.filter(
+    (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
+  ).length;
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setErrorMsg(null);
+  const lowStockLensesCount = lensStock.filter((s) => s.stock_qty < 5).length;
+  const totalLowStock = lowStockProductsCount + lowStockLensesCount;
 
-    try {
-      // 1. جلب العملاء
-      const { data: clientsData, error: clientsErr, count: clientsCount } = await supabase
-        .from('clients')
-        .select('*', { count: 'exact' });
-
-      if (clientsErr) console.error('خطأ في جلب العملاء:', clientsErr.message);
-
-      // 2. جلب المنتجات وقليلة المخزون
-      const { data: productsData, error: prodErr, count: prodCount } = await supabase
-        .from('products')
-        .select('*', { count: 'exact' });
-
-      if (prodErr) console.error('خطأ في جلب المنتجات:', prodErr.message);
-
-      const lowStock = productsData?.filter((p: any) => (p.quantity || 0) <= 5) || [];
-
-      // 3. جلب الطلبات
-      const { data: ordersData, error: ordersErr } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          clients ( name )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (ordersErr) {
-        console.error('خطأ في جلب الطلبات:', ordersErr.message);
-        setErrorMsg(`تعذر جلب البيانات: ${ordersErr.message}`);
-      }
-
-      // حساب المبيعات والطلبات اليومية
-      const today = new Date().toISOString().split('T')[0];
-      const todayOrders = ordersData?.filter((o: any) => o.created_at?.startsWith(today)) || [];
-      const todaySales = todayOrders.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
-
-      setStats({
-        todaySales,
-        todayOrdersCount: todayOrders.length,
-        pendingOrdersCount: ordersData?.filter((o: any) => o.status === 'pending' || o.status === 'قيد التجهيز').length || 0,
-        lowStockCount: lowStock.length,
-        activeClientsCount: clientsCount || clientsData?.length || 0,
-      });
-
-      setRecentOrders(ordersData?.slice(0, 7) || []);
-      setLowStockItems(lowStock.slice(0, 5));
-
-    } catch (err: any) {
-      console.error('خطأ عام أثناء الاتصال:', err);
-      setErrorMsg(err.message || 'حدث خطأ في الاتصال بقاعدة البيانات');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const todayDate = new Date().toLocaleDateString('ar-EG', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  // قائمة بأبرز التنبيهات للمخزون المنخفض
+  const lowStockItems = [
+    ...products
+      .filter((p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        type: 'منتج',
+        qty: Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)),
+      })),
+    ...lensStock
+      .filter((s) => s.stock_qty < 5)
+      .slice(0, 5)
+      .map((s) => ({
+        id: s.id,
+        name: `عدسة قياس (${s.sph > 0 ? `+${s.sph}` : s.sph})`,
+        type: 'عدسة',
+        qty: s.stock_qty,
+      })),
+  ].slice(0, 5);
 
   return (
     <div className="space-y-6" dir="rtl">
-      
-      {/* تنبيه بالخطأ إن وجد */}
-      {errorMsg && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-xs font-bold">
-          ⚠️ {errorMsg} (تحقق من وحدة التحكم Console بالضغط على F12 لرؤية التفاصيل)
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-800">اللوحة الرئيسية</h1>
-          <p className="text-xs text-slate-500 mt-0.5">نظرة عامة على نشاط النظام والمبيعات والمخزون</p>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs text-slate-500 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100 shrink-0">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Calendar className="w-4 h-4 text-sky-600" />
-            {todayDate}
-          </span>
-          <span className="text-slate-300">|</span>
-          <button 
-            type="button" 
-            onClick={fetchDashboardData}
-            className="flex items-center gap-1 font-mono text-[11px] hover:text-sky-600 transition"
-          >
-            <RefreshCw className={`w-3 h-3 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
-            تحديث البيانات
-          </button>
-        </div>
-      </div>
-
-      {/* Cards */}
+      {/* 📊 البطاقات الإحصائية الأربعة */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500">إجمالي مبيعات اليوم</span>
-            <div className="text-2xl sm:text-3xl font-black text-slate-800 font-mono">
-              {formatILS(stats.todaySales)}
-            </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">طلبات اليوم</p>
+            <h3 className="text-2xl font-bold text-slate-800 mt-1">{todayOrders.length}</h3>
           </div>
-          <div className="w-13 h-13 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl font-bold">
+            📦
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500">طلبات اليوم</span>
-            <div className="text-2xl sm:text-3xl font-black text-slate-800 font-mono">
-              {stats.todayOrdersCount} <span className="text-xs font-normal text-slate-400">طلب</span>
-            </div>
-            <span className="text-[11px] text-slate-400 font-medium">{stats.pendingOrdersCount} قيد التجهيز</span>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">إجمالي الطلبات</p>
+            <h3 className="text-2xl font-bold text-slate-800 mt-1">{orders.length}</h3>
           </div>
-          <div className="w-13 h-13 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-            <ShoppingCart className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
+            ✅
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500">تنبيهات المخزون</span>
-            <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono">
-              {stats.lowStockCount} <span className="text-sm font-bold text-amber-700">صنف</span>
-            </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">💰 إجمالي المبيعات</p>
+            <h3 className="text-2xl font-bold text-emerald-700 mt-1">{formatILS(totalSales)}</h3>
           </div>
-          <div className="w-13 h-13 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl font-bold">
+            📈
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500">إجمالي العملاء</span>
-            <div className="text-2xl sm:text-3xl font-black text-slate-800 font-mono">
-              {stats.activeClientsCount}
-            </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500">📉 تنبيهات المخزون</p>
+            <h3 className={`text-2xl font-bold mt-1 ${totalLowStock > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+              {totalLowStock} <span className="text-xs font-normal text-slate-400">صنف منخفض</span>
+            </h3>
           </div>
-          <div className="w-13 h-13 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <Users className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">
+            ⚠️
           </div>
         </div>
       </div>
 
-      {/* Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-bold text-slate-800 text-sm sm:text-base">أحدث الطلبات</h2>
+      {/* 📥 أحدث الطلبات + تنبيهات نقص المخزون */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* جدول أحدث الطلبات المحسن */}
+        <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 text-sm">📋 أحدث الطلبات المسجلة</h3>
+            <button
+              onClick={() => onNavigate('orders-history')}
+              className="text-xs text-sky-600 hover:underline font-bold"
+            >
+              عرض الكل ⬅
+            </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs sm:text-sm">
-              <thead className="bg-slate-50/70 text-slate-500 font-bold border-b border-slate-100">
-                <tr>
-                  <th className="p-3.5 pr-5">رقم الطلب</th>
-                  <th className="p-3.5">العميل</th>
-                  <th className="p-3.5">التاريخ</th>
-                  <th className="p-3.5">المبلغ</th>
-                  <th className="p-3.5 pl-5">الحالة</th>
+          <div className="overflow-x-auto border rounded-xl">
+            <table className="w-full text-right border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 text-slate-600 border-b">
+                  <th className="p-3 font-bold w-24">رقم الطلب</th>
+                  <th className="p-3 font-bold">طريقة الدفع</th>
+                  <th className="p-3 font-bold text-center">الحالة</th>
+                  <th className="p-3 font-bold text-left w-28">الإجمالي</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {recentOrders.length > 0 ? (
-                  recentOrders.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/60 transition">
-                      <td className="p-3.5 pr-5 font-mono font-bold text-sky-600">
-                        #{String(row.id).slice(0, 8)}
+              <tbody>
+                {orders.length > 0 ? (
+                  orders.slice(0, 5).map((ord, idx) => (
+                    <tr
+                      key={ord.id}
+                      className={`border-b transition-colors ${
+                        idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                      } hover:bg-sky-50/50`}
+                    >
+                      <td className="p-3 font-mono font-bold text-slate-700">
+                        #{ord.id.slice(0, 8)}
                       </td>
-                      <td className="p-3.5 font-bold text-slate-800">
-                        {row.clients?.name || row.client_name || 'عميل'}
+                      <td className="p-3 font-medium text-slate-600">
+                        {ord.payment_method === 'cash'
+                          ? '💵 نقدي'
+                          : ord.payment_method === 'credit'
+                          ? '💳 دين'
+                          : '🏦 بنكي'}
                       </td>
-                      <td className="p-3.5 text-slate-400 font-mono text-xs">
-                        {row.created_at ? new Date(row.created_at).toLocaleDateString('ar-EG') : '-'}
-                      </td>
-                      <td className="p-3.5 font-mono font-extrabold text-slate-800">
-                        {formatILS(row.total_amount || 0)}
-                      </td>
-                      <td className="p-3.5 pl-5">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                          {row.status || 'معلق'}
+                      <td className="p-3 text-center">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            ord.status === 'confirmed'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {ord.status === 'confirmed' ? 'مؤكد' : 'مسودة'}
                         </span>
+                      </td>
+                      <td className="p-3 font-bold text-slate-800 text-left">
+                        {formatILS(ord.total || 0)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="text-center p-8 text-slate-400">
-                      {loading ? 'جاري تحميل البيانات...' : 'لا توجد طلبات مسجلة في قاعدة البيانات'}
+                    <td colSpan={4} className="p-6 text-center text-slate-400">
+                      لا توجد طلبات حديثة
                     </td>
                   </tr>
                 )}
@@ -237,30 +171,42 @@ export function DashboardHome() {
           </div>
         </div>
 
-        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
-          <h2 className="font-bold text-slate-800 text-sm border-b pb-3 border-slate-100">أصناف منخفضة بالمخزن</h2>
-          <div className="space-y-3">
+        {/* تنبيهات المخزون والأصناف المنخفضة */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 text-sm">🚨 أصناف قاربت على الانتهاء</h3>
+            <button
+              onClick={() => onNavigate('inventory')}
+              className="text-xs text-sky-600 hover:underline font-bold"
+            >
+              المخزون ⬅
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
             {lowStockItems.length > 0 ? (
               lowStockItems.map((item) => (
-                <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-rose-50/60 border border-rose-100"
+                >
                   <div>
-                    <h4 className="font-bold text-xs text-slate-800">{item.name}</h4>
-                    <span className="text-[10px] font-mono text-slate-400">{item.code}</span>
+                    <p className="text-xs font-bold text-slate-800">{item.name}</p>
+                    <span className="text-[10px] text-slate-500 font-semibold">{item.type}</span>
                   </div>
-                  <span className="text-xs font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
-                    {item.quantity}
+                  <span className="bg-rose-100 text-rose-700 text-xs font-extrabold px-2.5 py-1 rounded-lg">
+                    متبقي: {item.qty}
                   </span>
                 </div>
               ))
             ) : (
-              <div className="text-center p-4 text-xs text-slate-400">
-                {loading ? 'جاري الفحص...' : 'لا توجد أصناف منخفضة'}
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                ✨ جميع الأصناف والمخزون في حالة ممتازة!
               </div>
             )}
           </div>
         </div>
       </div>
-
     </div>
   );
-}
+};

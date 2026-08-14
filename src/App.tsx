@@ -69,12 +69,12 @@ export default function App() {
   const [selectedReturnLensId, setSelectedReturnLensId] = useState<string>('');
   const [returnSph, setReturnSph] = useState<number>(0);
   const [returnQty, setReturnQty] = useState<number>(1);
-  const [returnNote, setReturnNote] = useState('');
 
-  // إعدادات عرض المخزون (نوع المخزون + العدسة المحددة)
+  // إعدادات عرض المخزون
   const [inventoryType, setInventoryType] = useState<'lenses' | 'products'>('lenses');
   const [inventoryCategory, setInventoryCategory] = useState<string>('');
 
+  // 🔄 جلب البيانات الشاملة من Supabase
   const loadData = useCallback(async () => {
     try {
       const [c, l, p, ls, ord] = await Promise.all([
@@ -82,7 +82,6 @@ export default function App() {
         supabase.from('lens_products').select('*').eq('active', true).order('brand'),
         supabase.from('products').select('*').eq('active', true).order('category, name'),
         supabase.from('lens_stock').select('*'),
-        // 🎯 جلب الطلبات مع الربط بجدول العملاء لتضمين الاسم تلقائياً
         supabase.from('orders').select('*, clients(name)').order('created_at', { ascending: false }),
       ]);
 
@@ -96,7 +95,6 @@ export default function App() {
       setProducts(p.data || []);
       setLensStock(ls.data || []);
 
-      // 🎯 تنسيق بيانات الطلبات وتثبيت client_name لكل طلب
       const formattedOrders = (ord.data || []).map((o: any) => ({
         ...o,
         client_name: o.clients?.name || o.client_name || null,
@@ -328,6 +326,7 @@ export default function App() {
 
   const creditExceeded = false;
 
+  // 💾 معالجة حفظ الطلب وتنشيط ربط المخزون بالكامل
   const persistOrder = useCallback(
     async (status: 'draft' | 'confirmed'): Promise<{ orderId: string; invoiceNumber?: string } | null> => {
       if (!selectedClient) {
@@ -388,6 +387,7 @@ export default function App() {
         const { error: ie } = await supabase.from('order_items').insert(items);
         if (ie) throw ie;
 
+        // 📦 تحديث المخزون وحساب الديون في حالة تأكيد البيع
         if (status === 'confirmed') {
           for (const item of cart) {
             if ('lensProductId' in item) {
@@ -410,20 +410,17 @@ export default function App() {
             }
           }
 
-          const newBalance = selectedClient.outstanding_balance + total;
-          const { error: ue } = await supabase
-            .from('clients')
-            .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
-            .eq('id', selectedClient.id);
+          if (paymentMethod === 'credit') {
+            const newBalance = selectedClient.outstanding_balance + total;
+            const { error: ue } = await supabase
+              .from('clients')
+              .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
+              .eq('id', selectedClient.id);
 
-          if (ue) throw ue;
+            if (ue) throw ue;
+          }
 
-          setClients((prev) =>
-            prev.map((c) =>
-              c.id === selectedClient.id ? { ...c, outstanding_balance: newBalance } : c
-            )
-          );
-
+          // إعادة جلب البيانات فوراً ليتحدث المخزون بكل أرجاء التطبيق
           await loadData();
         }
 
@@ -445,7 +442,7 @@ export default function App() {
         setSaving(false);
       }
     },
-    [selectedClient, cart, creditExceeded, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, products, loadData]
+    [selectedClient, cart, subtotal, discountPercent, discountAmount, total, paymentMethod, notes, stockMap, products, loadData]
   );
 
   const calculatedReturnTotal = useMemo(() => {
@@ -459,6 +456,7 @@ export default function App() {
     }
   }, [returnItemType, selectedReturnProductId, selectedReturnLensId, returnQty, products, lensProducts]);
 
+  // 🔄 معالجة إرجاع المنتجات والعدسات وتحديث المخزون
   async function handleReturnProduct() {
     if (!selectedReturnClient || returnQty <= 0 || calculatedReturnTotal <= 0) {
       alert('يرجى تحديد المنتج والكمية بشكل صحيح');
@@ -492,18 +490,11 @@ export default function App() {
         }
       }
 
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === selectedReturnClient.id ? { ...c, outstanding_balance: updatedBalance } : c
-        )
-      );
-
       await loadData();
 
       setSelectedReturnClient(null);
       setReturnQty(1);
-      setReturnNote('');
-      alert(`تم تسجيل المرتجع بنجاح وإعادة المنتجات للمخزون، وخصم مبلغ ${formatILS(calculatedReturnTotal)} من دين العميل.`);
+      alert(`تم تسجيل المرتجع بنجاح وإعادة المنتجات للمخزون، وخصم مبلغ ${formatILS(calculatedReturnTotal)} من حساب العميل.`);
     } catch (e) {
       alert('حدث خطأ أثناء تسجيل المرتجع: ' + (e instanceof Error ? e.message : ''));
     }
@@ -656,7 +647,6 @@ export default function App() {
     win.document.close();
   }
 
-  // 🔒 إذا لم يكن مسجلاً للدخول، يتم عرض شاشة الحماية بكلمة المرور
   if (!isAuthenticated) {
     return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
   }
@@ -843,7 +833,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 1. مخزون العدسات */}
+            {/* مخزون العدسات */}
             {inventoryType === 'lenses' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -937,7 +927,7 @@ export default function App() {
               </div>
             )}
 
-            {/* 2. مخزون المنتجات والملحقات العامة */}
+            {/* مخزون المنتجات والملحقات العامة */}
             {inventoryType === 'products' && (
               <div className="overflow-x-auto border rounded-xl">
                 <table className="w-full text-right border-collapse">
@@ -1012,7 +1002,7 @@ export default function App() {
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {/* Tab 4: دليل العملاء + المرتجعات بالمنتج */}
+        {/* Tab 4: دليل العملاء + المرتجعات */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (

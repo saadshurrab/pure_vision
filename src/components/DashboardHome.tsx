@@ -1,264 +1,214 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { formatILS } from '@/lib/supabase';
 
+interface Client {
+  id: string;
+  name: string;
+  outstanding_balance: number;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  stock_qty: number;
+  consumed_stock: number;
+}
+
+interface LensStock {
+  id: string;
+  stock_qty: number;
+}
+
+interface Order {
+  id: string;
+  created_at: string;
+  client_name?: string;
+  total: number;
+  status: 'draft' | 'confirmed' | 'cancelled';
+  payment_method: string;
+}
+
 interface DashboardHomeProps {
-  orders: any[];
+  orders: Order[];
   clientsCount: number;
-  clients?: any[]; // 👈 تم إضافة قائمة العملاء للبحث عن الاسم بالـ ID إن وجد
-  products?: any[];
-  lensStock?: any[];
+  clients: Client[];
+  products: Product[];
+  lensStock: LensStock[];
   onNavigate: (tab: 'new-order' | 'inventory' | 'orders-history' | 'clients') => void;
 }
 
-export const DashboardHome: React.FC<DashboardHomeProps> = ({
+export function DashboardHome({
   orders,
   clientsCount,
-  clients = [],
-  products = [],
-  lensStock = [],
+  clients,
+  products,
+  lensStock,
   onNavigate,
-}) => {
-  // حساب المبيعات والطلبات
-  const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-  
-  const todayOrders = orders.filter((o) => {
-    if (!o.created_at) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return o.created_at.startsWith(today);
-  });
-
-  // 🎯 جلب أحدث 5 طلبات بترتيب تنازلي حسب تاريخ الإنشاء
-  const latestOrders = useMemo(() => {
-    return [...orders]
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-      .slice(0, 5);
+}: DashboardHomeProps) {
+  // حساب إجمالي المبيعات للطلبات المؤكدة فقط
+  const totalSales = useMemo(() => {
+    return orders
+      .filter((o) => o.status === 'confirmed')
+      .reduce((sum, o) => sum + (o.total || 0), 0);
   }, [orders]);
 
-  // 🔍 دالة يجلب من خلالها اسم العميل بكافة الاحتمالات الممكنة
-  const getClientName = (ord: any) => {
-    // 1. إذا كان الاسم قادماً مباشرة في الطلب
-    if (ord.client_name) return ord.client_name;
-    if (ord.client?.name) return ord.client.name;
-    if (ord.clients?.name) return ord.clients.name;
+  // حساب إجمالي الديون المستحقة على العملاء
+  const totalOutstandingBalance = useMemo(() => {
+    return clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
+  }, [clients]);
 
-    // 2. إذا كان الطلب يحتوي على client_id ونملك مصفوفة العملاء
-    if (ord.client_id && clients.length > 0) {
-      const foundClient = clients.find((c) => c.id === ord.client_id);
-      if (foundClient?.name) return foundClient.name;
-    }
+  // حساب النقص في المخزون (منتجات أو عدسات كميتها أقل من 5)
+  const lowStockCount = useMemo(() => {
+    const lowProducts = products.filter(
+      (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
+    ).length;
+    const lowLenses = lensStock.filter((l) => (l.stock_qty || 0) < 5).length;
+    return lowProducts + lowLenses;
+  }, [products, lensStock]);
 
-    return 'غير محدد';
-  };
-
-  // دالة تنسيق التاريخ والوقت باللغة العربية
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return '—';
-    try {
-      const date = new Date(dateString);
-      return new Intl.DateTimeFormat('ar-EG', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }).format(date);
-    } catch {
-      return dateString;
-    }
-  };
-
-  // حساب المنتجات منخفضة المخزون
-  const lowStockProductsCount = products.filter(
-    (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
-  ).length;
-
-  const lowStockLensesCount = lensStock.filter((s) => s.stock_qty < 5).length;
-  const totalLowStock = lowStockProductsCount + lowStockLensesCount;
-
-  // قائمة بأبرز التنبيهات للمخزون المنخفض
-  const lowStockItems = [
-    ...products
-      .filter((p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        type: 'منتج',
-        qty: Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)),
-      })),
-    ...lensStock
-      .filter((s) => s.stock_qty < 5)
-      .slice(0, 5)
-      .map((s) => ({
-        id: s.id,
-        name: `عدسة قياس (${s.sph > 0 ? `+${s.sph}` : s.sph})`,
-        type: 'عدسة',
-        qty: s.stock_qty,
-      })),
-  ].slice(0, 5);
+  // أحدث 5 طلبات
+  const recentOrders = useMemo(() => {
+    return orders.slice(0, 5);
+  }, [orders]);
 
   return (
-    <div className="space-y-6" dir="rtl">
-      {/* 📊 البطاقات الإحصائية الأربعة */}
+    <div className="space-y-6">
+      {/* 1. كروت الإحصائيات السريعة */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+        {/* إجمالي المبيعات */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">طلبات اليوم</p>
-            <h3 className="text-2xl font-bold text-slate-800 mt-1">{todayOrders.length}</h3>
+            <p className="text-xs font-bold text-slate-500 mb-1">إجمالي المبيعات المؤكدة</p>
+            <h3 className="text-2xl font-black text-emerald-600">{formatILS(totalSales)}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl font-bold">
-            📦
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold">
+            💰
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+        {/* الديون المستحقة */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">إجمالي الطلبات</p>
-            <h3 className="text-2xl font-bold text-slate-800 mt-1">{orders.length}</h3>
+            <p className="text-xs font-bold text-slate-500 mb-1">إجمالي ديون العملاء</p>
+            <h3 className="text-2xl font-black text-rose-600">{formatILS(totalOutstandingBalance)}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
-            ✅
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl font-bold">
+            💳
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+        {/* عدد العملاء */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">💰 إجمالي المبيعات</p>
-            <h3 className="text-2xl font-bold text-emerald-700 mt-1">{formatILS(totalSales)}</h3>
+            <p className="text-xs font-bold text-slate-500 mb-1">العملاء المسجلين</p>
+            <h3 className="text-2xl font-black text-sky-700">{clientsCount} عميل</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl font-bold">
-            📈
+          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xl font-bold">
+            👥
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+        {/* تنبيهات المخزون */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">📉 تنبيهات المخزون</p>
-            <h3 className={`text-2xl font-bold mt-1 ${totalLowStock > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-              {totalLowStock} <span className="text-xs font-normal text-slate-400">صنف منخفض</span>
-            </h3>
+            <p className="text-xs font-bold text-slate-500 mb-1">تنبيهات نواقص المخزون</p>
+            <h3 className="text-2xl font-black text-amber-600">{lowStockCount} أصناف</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold">
             ⚠️
           </div>
         </div>
       </div>
 
-      {/* 📥 أحدث الطلبات + تنبيهات نقص المخزون */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* جدول أحدث الطلبات المسجلة */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 text-sm">📋 أحدث الطلبات المسجلة</h3>
-            <button
-              onClick={() => onNavigate('orders-history')}
-              className="text-xs text-sky-600 hover:underline font-bold"
-            >
-              عرض الكل ⬅
-            </button>
-          </div>
+      {/* 2. إجراءات سريعة */}
+      <div className="bg-gradient-to-r from-sky-800 to-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold">مرحباً بك في لوحة تحكم Pure Vision Optics</h2>
+          <p className="text-xs text-sky-200 mt-1">يمكنك البدء فوراً بإنشاء طلب جديد أو متابعة حالة المخزون والحسابات.</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => onNavigate('new-order')}
+            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm"
+          >
+            ➕ طلب جديد
+          </button>
+          <button
+            onClick={() => onNavigate('inventory')}
+            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition"
+          >
+            📦 جرد المخزون
+          </button>
+        </div>
+      </div>
 
-          <div className="overflow-x-auto border rounded-xl">
-            <table className="w-full text-right border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-100 text-slate-600 border-b">
-                  <th className="p-3 font-bold w-20">رقم الطلب</th>
-                  <th className="p-3 font-bold">العميل</th>
-                  <th className="p-3 font-bold">التاريخ والوقت</th>
-                  <th className="p-3 font-bold">طريقة الدفع</th>
-                  <th className="p-3 font-bold text-center">الحالة</th>
-                  <th className="p-3 font-bold text-left w-24">الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {latestOrders.length > 0 ? (
-                  latestOrders.map((ord, idx) => (
-                    <tr
-                      key={ord.id}
-                      className={`border-b transition-colors ${
-                        idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
-                      } hover:bg-sky-50/50`}
-                    >
-                      <td className="p-3 font-mono font-bold text-slate-700">
-                        #{ord.id.slice(0, 8)}
-                      </td>
-                      <td className="p-3 font-bold text-slate-800">
-                        {getClientName(ord)}
-                      </td>
-                      <td className="p-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                        {formatDateTime(ord.created_at)}
-                      </td>
-                      <td className="p-3 font-medium text-slate-600">
-                        {ord.payment_method === 'cash'
-                          ? '💵 نقدي'
-                          : ord.payment_method === 'credit'
-                          ? '💳 دين'
-                          : '🏦 بنكي'}
-                      </td>
-                      <td className="p-3 text-center">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            ord.status === 'confirmed'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {ord.status === 'confirmed' ? 'مؤكد' : 'مسودة'}
-                        </span>
-                      </td>
-                      <td className="p-3 font-bold text-slate-800 text-left">
-                        {formatILS(ord.total || 0)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-400">
-                      لا توجد طلبات حديثة
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      {/* 3. أحدث الطلبات والعمليات */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div className="flex justify-between items-center border-b pb-3">
+          <h3 className="font-bold text-slate-800 text-base">📋 أحدث الطلبات والعمليات المسجلة</h3>
+          <button
+            onClick={() => onNavigate('orders-history')}
+            className="text-xs font-bold text-sky-600 hover:underline"
+          >
+            عرض كافة الطلبات ←
+          </button>
         </div>
 
-        {/* تنبيهات المخزون والأصناف المنخفضة */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 text-sm">🚨 أصناف قاربت على الانتهاء</h3>
-            <button
-              onClick={() => onNavigate('inventory')}
-              className="text-xs text-sky-600 hover:underline font-bold"
-            >
-              المخزون ⬅
-            </button>
-          </div>
-
-          <div className="space-y-2.5">
-            {lowStockItems.length > 0 ? (
-              lowStockItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-rose-50/60 border border-rose-100"
-                >
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{item.name}</p>
-                    <span className="text-[10px] text-slate-500 font-semibold">{item.type}</span>
-                  </div>
-                  <span className="bg-rose-100 text-rose-700 text-xs font-extrabold px-2.5 py-1 rounded-lg">
-                    متبقي: {item.qty}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
-                ✨ جميع الأصناف والمخزون في حالة ممتازة!
-              </div>
-            )}
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b text-slate-600 text-xs font-bold">
+                <th className="p-3">تاريخ الطلب</th>
+                <th className="p-3">اسم العميل</th>
+                <th className="p-3">طريقة الدفع</th>
+                <th className="p-3">الحالة</th>
+                <th className="p-3">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentOrders.length > 0 ? (
+                recentOrders.map((ord) => (
+                  <tr key={ord.id} className="border-b hover:bg-slate-50/80 transition text-sm">
+                    <td className="p-3 text-slate-500 text-xs">
+                      {new Date(ord.created_at).toLocaleDateString('ar-EG', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="p-3 font-bold text-slate-800">{ord.client_name || 'غير معروف'}</td>
+                    <td className="p-3 text-xs font-semibold">
+                      {ord.payment_method === 'cash' ? '💵 نقدي' : ord.payment_method === 'credit' ? '💳 دين' : '🏦 بنكي'}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                          ord.status === 'confirmed'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : ord.status === 'draft'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {ord.status === 'confirmed' ? 'مؤكد' : ord.status === 'draft' ? 'مسودة' : 'ملغى'}
+                      </span>
+                    </td>
+                    <td className="p-3 font-extrabold text-sky-800">{formatILS(ord.total)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-slate-400 text-sm">
+                    لا توجد طلبات مسجلة حتى الآن.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
-};
+}

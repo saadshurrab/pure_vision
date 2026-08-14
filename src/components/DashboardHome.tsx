@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { formatILS } from '@/lib/supabase';
 
 interface DashboardHomeProps {
@@ -18,11 +18,19 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 }) => {
   // حساب المبيعات والطلبات
   const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  
   const todayOrders = orders.filter((o) => {
     if (!o.created_at) return false;
     const today = new Date().toISOString().split('T')[0];
     return o.created_at.startsWith(today);
   });
+
+  // 🎯 جلب أحدث 5 طلبات بترتيب تنازلي حسب تاريخ الإنشاء
+  const latestOrders = useMemo(() => {
+    return [...orders]
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 5);
+  }, [orders]);
 
   // حساب المنتجات منخفضة المخزون (أقل من 5 قطع)
   const lowStockProductsCount = products.filter(
@@ -125,8 +133,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {orders.length > 0 ? (
-                  orders.slice(0, 5).map((ord, idx) => (
+                {latestOrders.length > 0 ? (
+                  latestOrders.map((ord, idx) => (
                     <tr
                       key={ord.id}
                       className={`border-b transition-colors ${

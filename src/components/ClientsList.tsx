@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase, type Client, formatILS } from '@/lib/supabase';
 
 interface Props {
@@ -9,6 +9,9 @@ interface Props {
 export function ClientsList({ clients, onClientAdded }: Props) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState<Client | null>(null);
+
+  // حالة البحث المباشر
+  const [searchQuery, setSearchQuery] = useState('');
 
   // حالات إضافة عميل
   const [name, setName] = useState('');
@@ -22,7 +25,20 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // إحصائيات عامة
+  // فلترة العملاء بناءً على حقل البحث
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients;
+    const q = searchQuery.toLowerCase().trim();
+    return clients.filter((c) => {
+      const matchName = c.name?.toLowerCase().includes(q);
+      const matchCode = c.code?.toLowerCase().includes(q);
+      const matchPhone = c.phone?.includes(q);
+      const matchCity = c.city?.toLowerCase().includes(q);
+      return matchName || matchCode || matchPhone || matchCity;
+    });
+  }, [clients, searchQuery]);
+
+  // إحصائيات عامة (محسوبة على إجمالي العملاء)
   const totalDebtSum = clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
   const totalPaidSum = clients.reduce((sum, c) => sum + (c.total_paid || 0), 0);
 
@@ -121,17 +137,40 @@ export function ClientsList({ clients, onClientAdded }: Props) {
 
       {/* جدول العملاء */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-xl font-bold text-slate-800">دليل العملاء</h2>
             <p className="text-sm text-slate-500">متابعة إجمالي الديون وإجمالي المبالغ المسددة (الواصل)</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm"
-          >
-            + إضافة عميل جديد
-          </button>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* 🔍 حقل البحث المخصص */}
+            <div className="relative min-w-[260px]">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث بالاسم، الكود، الهاتف، أو المدينة..."
+                className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  title="مسح البحث"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm whitespace-nowrap"
+            >
+              + إضافة عميل جديد
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -148,40 +187,48 @@ export function ClientsList({ clients, onClientAdded }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {clients.map((c) => {
-                const hasDebt = (c.outstanding_balance || 0) > 0;
-                return (
-                  <tr key={c.id} className="hover:bg-slate-50">
-                    <td className="p-3 font-mono text-slate-500">{c.code}</td>
-                    <td className="p-3 font-semibold text-slate-800">{c.name}</td>
-                    <td className="p-3 text-slate-600">{c.city || '—'}</td>
-                    <td className="p-3 text-slate-600">{c.phone || '—'}</td>
-                    <td className={`p-3 font-semibold ${hasDebt ? 'text-red-600' : 'text-slate-400'}`}>
-                      {formatILS(c.outstanding_balance || 0)}
-                    </td>
-                    <td className="p-3 font-bold text-emerald-600">
-                      {formatILS(c.total_paid || 0)}
-                    </td>
-                    <td className="p-3 text-center">
-                      {hasDebt ? (
-                        <button
-                          onClick={() => {
-                            setShowPayModal(c);
-                            setPayAmount(c.outstanding_balance);
-                          }}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto"
-                        >
-                          ✅ 💰 تسديد (واصل)
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
-                          خالي من الديون ✨
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredClients.length > 0 ? (
+                filteredClients.map((c) => {
+                  const hasDebt = (c.outstanding_balance || 0) > 0;
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3 font-mono text-slate-500">{c.code}</td>
+                      <td className="p-3 font-semibold text-slate-800">{c.name}</td>
+                      <td className="p-3 text-slate-600">{c.city || '—'}</td>
+                      <td className="p-3 text-slate-600 font-mono text-xs">{c.phone || '—'}</td>
+                      <td className={`p-3 font-semibold ${hasDebt ? 'text-red-600' : 'text-slate-400'}`}>
+                        {formatILS(c.outstanding_balance || 0)}
+                      </td>
+                      <td className="p-3 font-bold text-emerald-600">
+                        {formatILS(c.total_paid || 0)}
+                      </td>
+                      <td className="p-3 text-center">
+                        {hasDebt ? (
+                          <button
+                            onClick={() => {
+                              setShowPayModal(c);
+                              setPayAmount(c.outstanding_balance);
+                            }}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto"
+                          >
+                            ✅ 💰 تسديد (واصل)
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
+                            خالي من الديون ✨
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-400">
+                    {searchQuery ? `لا يوجد نتائج مطابقة للبحث عن "${searchQuery}"` : 'لا يوجد عملاء في القائمة.'}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

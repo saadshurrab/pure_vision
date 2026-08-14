@@ -10,7 +10,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
   const [error, setError] = useState('');
 
   // 🔑 حدد كلمة المرور المطلوبة هنا (يمكنك تغييرها لاحقاً)
-  const SECRET_PASSWORD = '123'; 
+  const SECRET_PASSWORD = '2864341'; 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

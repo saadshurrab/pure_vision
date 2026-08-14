@@ -22,7 +22,7 @@ import { OrderConfirmationModal, type OrderSummary } from '@/components/OrderCon
 import { ClientsList } from '@/components/ClientsList';
 import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
-import { StatsOverview } from '@/components/StatsOverview';
+import { DashboardHome } from '@/components/DashboardHome';
 
 export default function App() {
   // 🔒 إدارة حالة تسجيل الدخول والأمان
@@ -30,7 +30,8 @@ export default function App() {
     return localStorage.getItem('pvo_authenticated') === 'true';
   });
 
-  const [activeTab, setActiveTab] = useState<'new-order' | 'inventory' | 'orders-history' | 'clients'>('new-order');
+  // التبويب الافتراضي هو الواجهة الرئيسية (home)
+  const [activeTab, setActiveTab] = useState<'home' | 'new-order' | 'inventory' | 'orders-history' | 'clients'>('home');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -659,44 +660,59 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
       <Header />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
-        
-        {/* 📊 بطاقات الإحصائيات الشاملة */}
-        <StatsOverview orders={orders} />
 
-        <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm">
+        {/* شريط التبويبات الرئيسي */}
+        <div className="flex border-b border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`flex-1 py-2.5 px-4 text-center font-semibold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'home' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            🏠 الرئيسية
+          </button>
           <button
             onClick={() => setActiveTab('new-order')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
-              activeTab === 'new-order' ? 'bg-sky-600 text-white' : 'text-slate-600'
+            className={`flex-1 py-2.5 px-4 text-center font-semibold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'new-order' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             🛒 إنشاء طلب جديد
           </button>
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
-              activeTab === 'inventory' ? 'bg-sky-600 text-white' : 'text-slate-600'
+            className={`flex-1 py-2.5 px-4 text-center font-semibold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'inventory' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             📦 عرض المخزون
           </button>
           <button
             onClick={() => setActiveTab('orders-history')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
-              activeTab === 'orders-history' ? 'bg-sky-600 text-white' : 'text-slate-600'
+            className={`flex-1 py-2.5 px-4 text-center font-semibold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'orders-history' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             📋 سجل الطلبات
           </button>
           <button
             onClick={() => setActiveTab('clients')}
-            className={`flex-1 py-2.5 text-center font-semibold text-sm rounded-lg ${
-              activeTab === 'clients' ? 'bg-sky-600 text-white' : 'text-slate-600'
+            className={`flex-1 py-2.5 px-4 text-center font-semibold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'clients' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             👥 دليل العملاء والمرتجعات
           </button>
         </div>
+
+        {/* Tab 0: الشاشة الرئيسية */}
+        {activeTab === 'home' && (
+          <DashboardHome
+            orders={orders}
+            clientsCount={clients.length}
+            onNavigate={(tab) => setActiveTab(tab)}
+          />
+        )}
 
         {/* Tab 1: إنشاء طلب جديد */}
         {activeTab === 'new-order' && (

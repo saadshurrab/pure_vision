@@ -18,7 +18,7 @@ interface Props {
   clients: Client[];
   selectedClientId: string;
   onSelect: (id: string) => void;
-  onCreateOrder?: (clientId: string) => void; // دالة عند الضغط على إنشاء طلب جديد
+  onCreateOrder?: (clientId: string) => void;
 }
 
 export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOrder }: Props) {
@@ -43,10 +43,30 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
     );
   }, [clients, searchTerm]);
 
+  // 🎯 دالة الضغط على إنشاء طلب جديد مع التمرير السلس للأسفل
+  const handleCreateOrder = (clientId: string) => {
+    // 1. استدعاء الدالة الخاصة بالأب (إن وجدت)
+    if (onCreateOrder) {
+      onCreateOrder(clientId);
+    }
+
+    // 2. التمرير إلى قسم إنشاء الطلب أسفل الصفحة
+    const orderSection = document.getElementById('order-section');
+    if (orderSection) {
+      orderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      // إذا لم يجد ID، ينزل لأسفل الصفحة كخطة بديلة
+      window.scrollTo({
+        top: window.scrollY + 600,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <div className="w-full space-y-4" dir="rtl">
       
-      {/* 🔍 1. شريط البحث العلوي المميز والممتد */}
+      {/* 🔍 1. شريط البحث العلوي */}
       <div className="relative bg-white rounded-2xl border border-slate-200/80 shadow-sm p-1.5">
         <div className="relative flex items-center">
           <input
@@ -69,10 +89,10 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
         </div>
       </div>
 
-      {/* 2. جسم الواجهة: مقسم لقسمين (قائمة العملاء يميناً + بطاقة المعاينة يساراً) */}
+      {/* 2. جسم الواجهة */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
-        {/* 📜 القسم الأيمن: قائمة بطاقات العملاء المختصرة */}
+        {/* 📜 القسم الأيمن: قائمة العملاء */}
         <div className="lg:col-span-6 space-y-2.5 max-h-[520px] overflow-y-auto pr-0.5 pl-1">
           {filteredClients.length > 0 ? (
             filteredClients.map((c) => {
@@ -90,9 +110,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                       : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
                   }`}
                 >
-                  {/* الشعار والحالة جهة اليمين */}
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* مربع الحرف الأول للعميل */}
                     <div
                       className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 transition ${
                         isSelected
@@ -103,7 +121,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                       {firstChar}
                     </div>
 
-                    {/* بيانات الاسم والهاتف والمدينة */}
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="font-bold text-slate-800 text-xs sm:text-sm truncate">
@@ -130,7 +147,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                     </div>
                   </div>
 
-                  {/* شارة الدين / الرصيد جهة اليسار */}
                   <div className="shrink-0 text-left">
                     {hasDebt ? (
                       <div className="flex flex-col items-end gap-0.5 bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-xl text-rose-700">
@@ -159,7 +175,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
           )}
         </div>
 
-        {/* 👁️ القسم الأيسر: بطاقة المعاينة المركزية */}
+        {/* 👁️ القسم الأيسر: بطاقة المعاينة */}
         <div className="lg:col-span-6 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm sticky top-4">
           <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-100 text-slate-800 font-bold text-sm">
             <Users className="w-4 h-4 text-sky-600" />
@@ -168,7 +184,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
 
           {selected ? (
             <div className="space-y-4 animate-fade-in text-center">
-              {/* دائرة اسم العميل الكبيرة */}
               <div className="flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-sky-600 text-white font-black text-xl flex items-center justify-center shadow-md mb-2">
                   {selected.name?.trim().charAt(0) || 'ع'}
@@ -181,9 +196,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                 </p>
               </div>
 
-              {/* شبكة تفاصيل العميل */}
               <div className="space-y-2 text-right pt-2">
-                {/* 1. الهاتف */}
                 <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                     <Phone className="w-4 h-4 text-sky-600" />
@@ -194,7 +207,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                   </span>
                 </div>
 
-                {/* 2. الموقع */}
                 <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-sky-600" />
@@ -205,7 +217,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                   </span>
                 </div>
 
-                {/* 3. الطلبات السابقة (اختياري) */}
                 <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-sky-600" />
@@ -216,7 +227,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                   </span>
                 </div>
 
-                {/* 4. الرصيد / الديون */}
                 <div
                   className={`p-3.5 rounded-xl border flex items-center justify-between ${
                     selected.outstanding_balance > 0
@@ -236,10 +246,10 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                 </div>
               </div>
 
-              {/* 🛒 زر إجراء السريع: إنشاء طلب جديد */}
+              {/* 🛒 زر إنشاء طلب جديد معدل بالدالة الجديدة */}
               <button
                 type="button"
-                onClick={() => onCreateOrder && onCreateOrder(selected.id)}
+                onClick={() => handleCreateOrder(selected.id)}
                 className="w-full mt-2 py-3 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-[0.99]"
               >
                 <ShoppingCart className="w-4 h-4" />
@@ -247,7 +257,6 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
               </button>
             </div>
           ) : (
-            /* حالة عدم اختيار عميل */
             <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-3">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
                 <Users className="w-8 h-8" />

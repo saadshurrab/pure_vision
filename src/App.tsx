@@ -314,7 +314,7 @@ export default function App() {
     ? selectedClient.credit_limit - selectedClient.outstanding_balance
     : 0;
 
-  const creditExceeded = selectedClient ? total > availableCredit : false;
+  const creditExceeded = false;
 
   const persistOrder = useCallback(
     async (status: 'draft' | 'confirmed'): Promise<{ orderId: string; invoiceNumber?: string } | null> => {
@@ -324,10 +324,6 @@ export default function App() {
       }
       if (cart.length === 0) {
         setSaveMsg({ type: 'err', text: 'السلة فارغة، أضف منتجات قبل الحفظ' });
-        return null;
-      }
-      if (status === 'confirmed' && creditExceeded) {
-        setSaveMsg({ type: 'err', text: 'القيمة الإجمالية تتجاوز الرصيد المتاح للعميل' });
         return null;
       }
 

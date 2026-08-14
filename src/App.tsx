@@ -82,7 +82,8 @@ export default function App() {
         supabase.from('lens_products').select('*').eq('active', true).order('brand'),
         supabase.from('products').select('*').eq('active', true).order('category, name'),
         supabase.from('lens_stock').select('*'),
-        supabase.from('orders').select('*'),
+        // 🎯 جلب الطلبات مع الربط بجدول العملاء لتضمين الاسم تلقائياً
+        supabase.from('orders').select('*, clients(name)').order('created_at', { ascending: false }),
       ]);
 
       if (c.error) throw c.error;
@@ -94,7 +95,13 @@ export default function App() {
       setLensProducts(l.data || []);
       setProducts(p.data || []);
       setLensStock(ls.data || []);
-      setOrders(ord.data || []);
+
+      // 🎯 تنسيق بيانات الطلبات وتثبيت client_name لكل طلب
+      const formattedOrders = (ord.data || []).map((o: any) => ({
+        ...o,
+        client_name: o.clients?.name || o.client_name || null,
+      }));
+      setOrders(formattedOrders);
 
       if (l.data && l.data.length > 0) {
         if (!selectedLensId) {
@@ -662,69 +669,70 @@ export default function App() {
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
 
         {/* شريط التبويبات الرئيسي */}
-<div className="flex border border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm overflow-x-auto gap-1">
-  <button
-    onClick={() => setActiveTab('home')}
-    className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-      activeTab === 'home'
-        ? 'bg-white text-sky-700 border-2 border-sky-600 shadow-sm'
-        : 'text-slate-600 hover:text-slate-900 border border-transparent'
-    }`}
-  >
-    🏠 الرئيسية
-  </button>
-  <button
-    onClick={() => setActiveTab('new-order')}
-    className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-      activeTab === 'new-order'
-        ? 'bg-sky-600 text-white shadow-sm'
-        : 'text-slate-600 hover:text-slate-900 border border-transparent'
-    }`}
-  >
-    🛒 إنشاء طلب جديد
-  </button>
-  <button
-    onClick={() => setActiveTab('inventory')}
-    className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-      activeTab === 'inventory'
-        ? 'bg-sky-600 text-white shadow-sm'
-        : 'text-slate-600 hover:text-slate-900 border border-transparent'
-    }`}
-  >
-    📦 عرض المخزون
-  </button>
-  <button
-    onClick={() => setActiveTab('orders-history')}
-    className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-      activeTab === 'orders-history'
-        ? 'bg-sky-600 text-white shadow-sm'
-        : 'text-slate-600 hover:text-slate-900 border border-transparent'
-    }`}
-  >
-    📋 سجل الطلبات
-  </button>
-  <button
-    onClick={() => setActiveTab('clients')}
-    className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-      activeTab === 'clients'
-        ? 'bg-sky-600 text-white shadow-sm'
-        : 'text-slate-600 hover:text-slate-900 border border-transparent'
-    }`}
-  >
-    👥 دليل العملاء والمرتجعات
-  </button>
-</div>
+        <div className="flex border border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm overflow-x-auto gap-1">
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'home'
+                ? 'bg-white text-sky-700 border-2 border-sky-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 border border-transparent'
+            }`}
+          >
+            🏠 الرئيسية
+          </button>
+          <button
+            onClick={() => setActiveTab('new-order')}
+            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'new-order'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 border border-transparent'
+            }`}
+          >
+            🛒 إنشاء طلب جديد
+          </button>
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'inventory'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 border border-transparent'
+            }`}
+          >
+            📦 عرض المخزون
+          </button>
+          <button
+            onClick={() => setActiveTab('orders-history')}
+            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'orders-history'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 border border-transparent'
+            }`}
+          >
+            📋 سجل الطلبات
+          </button>
+          <button
+            onClick={() => setActiveTab('clients')}
+            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
+              activeTab === 'clients'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 border border-transparent'
+            }`}
+          >
+            👥 دليل العملاء والمرتجعات
+          </button>
+        </div>
 
         {/* Tab 0: الشاشة الرئيسية */}
         {activeTab === 'home' && (
-  <DashboardHome
-    orders={orders}
-    clientsCount={clients.length}
-    products={products}
-    lensStock={lensStock}
-    onNavigate={(tab) => setActiveTab(tab)}
-  />
-)}
+          <DashboardHome
+            orders={orders}
+            clientsCount={clients.length}
+            clients={clients}
+            products={products}
+            lensStock={lensStock}
+            onNavigate={(tab) => setActiveTab(tab)}
+          />
+        )}
 
         {/* Tab 1: إنشاء طلب جديد */}
         {activeTab === 'new-order' && (

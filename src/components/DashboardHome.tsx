@@ -32,6 +32,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       .slice(0, 5);
   }, [orders]);
 
+  // دالة تنسيق التاريخ والوقت باللغة العربية
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return '—';
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('ar-EG', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }).format(date);
+    } catch {
+      return dateString;
+    }
+  };
+
   // حساب المنتجات منخفضة المخزون (أقل من 5 قطع)
   const lowStockProductsCount = products.filter(
     (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
@@ -110,7 +128,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
       {/* 📥 أحدث الطلبات + تنبيهات نقص المخزون */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* جدول أحدث الطلبات المحسن */}
+        {/* جدول أحدث الطلبات المحسن مع الاسم والتاريخ */}
         <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 text-sm">📋 أحدث الطلبات المسجلة</h3>
@@ -126,10 +144,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <table className="w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-600 border-b">
-                  <th className="p-3 font-bold w-24">رقم الطلب</th>
+                  <th className="p-3 font-bold w-20">رقم الطلب</th>
+                  <th className="p-3 font-bold">العميل</th>
+                  <th className="p-3 font-bold">التاريخ والوقت</th>
                   <th className="p-3 font-bold">طريقة الدفع</th>
                   <th className="p-3 font-bold text-center">الحالة</th>
-                  <th className="p-3 font-bold text-left w-28">الإجمالي</th>
+                  <th className="p-3 font-bold text-left w-24">الإجمالي</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,6 +163,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     >
                       <td className="p-3 font-mono font-bold text-slate-700">
                         #{ord.id.slice(0, 8)}
+                      </td>
+                      <td className="p-3 font-bold text-slate-800">
+                        {ord.client_name || ord.client?.name || ord.clients?.name || 'غير محدد'}
+                      </td>
+                      <td className="p-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                        {formatDateTime(ord.created_at)}
                       </td>
                       <td className="p-3 font-medium text-slate-600">
                         {ord.payment_method === 'cash'
@@ -169,7 +195,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-slate-400">
+                    <td colSpan={6} className="p-6 text-center text-slate-400">
                       لا توجد طلبات حديثة
                     </td>
                   </tr>

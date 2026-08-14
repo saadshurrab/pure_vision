@@ -4,6 +4,7 @@ import { formatILS } from '@/lib/supabase';
 interface DashboardHomeProps {
   orders: any[];
   clientsCount: number;
+  clients?: any[]; // 👈 تم إضافة قائمة العملاء للبحث عن الاسم بالـ ID إن وجد
   products?: any[];
   lensStock?: any[];
   onNavigate: (tab: 'new-order' | 'inventory' | 'orders-history' | 'clients') => void;
@@ -12,6 +13,7 @@ interface DashboardHomeProps {
 export const DashboardHome: React.FC<DashboardHomeProps> = ({
   orders,
   clientsCount,
+  clients = [],
   products = [],
   lensStock = [],
   onNavigate,
@@ -32,6 +34,22 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       .slice(0, 5);
   }, [orders]);
 
+  // 🔍 دالة يجلب من خلالها اسم العميل بكافة الاحتمالات الممكنة
+  const getClientName = (ord: any) => {
+    // 1. إذا كان الاسم قادماً مباشرة في الطلب
+    if (ord.client_name) return ord.client_name;
+    if (ord.client?.name) return ord.client.name;
+    if (ord.clients?.name) return ord.clients.name;
+
+    // 2. إذا كان الطلب يحتوي على client_id ونملك مصفوفة العملاء
+    if (ord.client_id && clients.length > 0) {
+      const foundClient = clients.find((c) => c.id === ord.client_id);
+      if (foundClient?.name) return foundClient.name;
+    }
+
+    return 'غير محدد';
+  };
+
   // دالة تنسيق التاريخ والوقت باللغة العربية
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return '—';
@@ -50,7 +68,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     }
   };
 
-  // حساب المنتجات منخفضة المخزون (أقل من 5 قطع)
+  // حساب المنتجات منخفضة المخزون
   const lowStockProductsCount = products.filter(
     (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
   ).length;
@@ -128,7 +146,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
       {/* 📥 أحدث الطلبات + تنبيهات نقص المخزون */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* جدول أحدث الطلبات المحسن مع الاسم والتاريخ */}
+        {/* جدول أحدث الطلبات المسجلة */}
         <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 text-sm">📋 أحدث الطلبات المسجلة</h3>
@@ -165,7 +183,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                         #{ord.id.slice(0, 8)}
                       </td>
                       <td className="p-3 font-bold text-slate-800">
-                        {ord.client_name || ord.client?.name || ord.clients?.name || 'غير محدد'}
+                        {getClientName(ord)}
                       </td>
                       <td className="p-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                         {formatDateTime(ord.created_at)}

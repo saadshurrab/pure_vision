@@ -70,6 +70,9 @@ export default function App() {
   const [returnSph, setReturnSph] = useState<number>(0);
   const [returnQty, setReturnQty] = useState<number>(1);
 
+  // 🔍 حالة البحث في قائمة العملاء
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+
   // إعدادات عرض المخزون
   const [inventoryType, setInventoryType] = useState<'lenses' | 'products'>('lenses');
   const [inventoryCategory, setInventoryCategory] = useState<string>('');
@@ -136,6 +139,17 @@ export default function App() {
     () => clients.find((c) => c.id === selectedClientId) || null,
     [clients, selectedClientId]
   );
+
+  // 🔍 الفلترة التلقائية للعملاء حسب البحث بالاسم أو الهاتفي
+  const filteredClients = useMemo(() => {
+    if (!clientSearchQuery.trim()) return clients;
+    const query = clientSearchQuery.toLowerCase().trim();
+    return clients.filter(
+      (c) =>
+        c.name.toLowerCase().includes(query) ||
+        (c.phone && c.phone.includes(query))
+    );
+  }, [clients, clientSearchQuery]);
 
   const selectedLens = useMemo(() => {
     return (
@@ -387,7 +401,6 @@ export default function App() {
         const { error: ie } = await supabase.from('order_items').insert(items);
         if (ie) throw ie;
 
-        // 📦 تحديث المخزون وحساب الديون في حالة تأكيد البيع
         if (status === 'confirmed') {
           for (const item of cart) {
             if ('lensProductId' in item) {
@@ -420,7 +433,6 @@ export default function App() {
             if (ue) throw ue;
           }
 
-          // إعادة جلب البيانات فوراً ليتحدث المخزون بكل أرجاء التطبيق
           await loadData();
         }
 
@@ -1002,7 +1014,7 @@ export default function App() {
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {/* Tab 4: دليل العملاء + المرتجعات */}
+        {/* Tab 4: دليل العملاء + البحث + المرتجعات */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (
@@ -1113,26 +1125,58 @@ export default function App() {
               </div>
             )}
 
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold mb-4 text-slate-800">قائمة العملاء المباشرة</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {clients.map((c) => (
-                  <div key={c.id} className="p-4 border rounded-xl flex justify-between items-center bg-slate-50">
-                    <div>
-                      <div className="font-bold text-slate-800">{c.name}</div>
-                      <div className="text-xs text-slate-500">{c.phone || 'بدون هاتف'}</div>
-                      <div className="text-sm mt-1 font-semibold text-rose-600">
-                        الدين: {formatILS(c.outstanding_balance)}
-                      </div>
-                    </div>
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+              {/* شريط البحث المباشر في العملاء */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">🔍 قائمة العملاء السريعة</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">البحث السريع واستعراض بيانات العملاء والديون المترتبة عليهم</p>
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                  <input
+                    type="text"
+                    value={clientSearchQuery}
+                    onChange={(e) => setClientSearchQuery(e.target.value)}
+                    placeholder="ابحث باسم العميل أو رقم الهاتف..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
+                  />
+                  {clientSearchQuery && (
                     <button
-                      onClick={() => setSelectedReturnClient(c)}
-                      className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition"
+                      onClick={() => setClientSearchQuery('')}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs"
                     >
-                      ↩ مرجع منتج
+                      ✕
                     </button>
+                  )}
+                </div>
+              </div>
+
+              {/* شبكة عرض العملاء المفلترة */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredClients.length > 0 ? (
+                  filteredClients.map((c) => (
+                    <div key={c.id} className="p-4 border border-slate-200 rounded-xl flex justify-between items-center bg-slate-50 hover:bg-white hover:border-sky-300 transition shadow-sm">
+                      <div>
+                        <div className="font-bold text-slate-800 text-base">{c.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{c.phone ? `📱 ${c.phone}` : 'بدون رقم هاتف'}</div>
+                        <div className="text-sm mt-2 font-semibold text-rose-600">
+                          الدين: <span className="font-bold">{formatILS(c.outstanding_balance)}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedReturnClient(c)}
+                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition flex items-center gap-1 shadow-sm"
+                      >
+                        ↩ مرجع منتج
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-full py-8 text-center text-slate-400 font-semibold text-sm">
+                    لم يتم العثور على أي عميل يطابق عبارة البحث "{clientSearchQuery}"
                   </div>
-                ))}
+                )}
               </div>
             </div>
 

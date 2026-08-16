@@ -9,8 +9,13 @@ import {
   SlidersHorizontal,
   Sparkles,
   RotateCw,
+  Info,
+  CheckCircle2,
+  Layers,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import type { LensProduct, LensStock, SphSign } from '@/lib/supabase';
+import type { LensProduct, SphSign } from '@/lib/supabase';
 import {
   getSPHValues,
   formatILS,
@@ -128,7 +133,7 @@ export function SphMatrix({
     }
   }
 
-  const rowSize = sphSign === 'minus' ? 16 : 16;
+  const rowSize = 16;
   const rows: number[][] = [];
   for (let i = 0; i < sphValues.length; i += rowSize) {
     rows.push(sphValues.slice(i, i + rowSize));
@@ -136,100 +141,124 @@ export function SphMatrix({
 
   function renderSphRow(slice: number[]) {
     return (
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="sticky right-0 bg-white px-3 py-2 text-center text-xs font-bold text-slate-500 border-b border-slate-200 w-20">
-              SPH ↓
-            </th>
-            {slice.map((sph) => {
-              const stock = selected ? stockMap.get(`${selected.id}:${sph}`) ?? 0 : 0;
-              const lowStock = stock <= 10;
-              return (
-                <th
-                  key={sph}
-                  className={`px-1 py-2 text-center text-xs font-bold border-b border-slate-200 ${
-                    lowStock ? 'text-amber-600' : 'text-slate-500'
-                  }`}
-                >
-                  {formatSPH(sph)}
-                  <span
-                    className={`block text-[10px] font-normal mt-0.5 ${
-                      lowStock ? 'text-amber-500' : 'text-slate-400'
+      <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-sm bg-white mb-3">
+        <table className="w-full text-right border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <th className="sticky right-0 z-10 bg-slate-100/90 backdrop-blur-sm px-3 py-2.5 border-l border-slate-200 text-center w-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                SPH ↓
+              </th>
+              {slice.map((sph) => {
+                const stock = selected ? stockMap.get(`${selected.id}:${sph}`) ?? 0 : 0;
+                const isOutOfStock = stock === 0;
+                const isLowStock = stock > 0 && stock <= 10;
+
+                return (
+                  <th
+                    key={sph}
+                    className={`px-1.5 py-2 text-center min-w-[58px] border-b border-slate-100 ${
+                      isOutOfStock
+                        ? 'bg-rose-50/40 text-rose-700'
+                        : isLowStock
+                        ? 'bg-amber-50/40 text-amber-700'
+                        : 'text-slate-700'
                     }`}
                   >
-                    ({stock})
-                  </span>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="sticky right-0 bg-white px-3 py-2 text-center text-xs font-medium text-slate-400 border-b border-slate-100">
-              كمية
-            </td>
-            {slice.map((sph) => {
-              const key = selected ? `${selected.id}:${sph}` : '';
-              const qty = selected ? quantities[key] || '' : '';
-              const stock = selected ? stockMap.get(key) ?? 0 : 0;
-              const entered = selected ? quantities[key] || 0 : 0;
-              const overStock = entered > stock;
-              return (
-                <td key={sph} className="p-1">
-                  <input
-                    ref={(el) => {
-                      if (el && selected) inputRefs.current.set(key, el);
-                    }}
-                    type="number"
-                    min={0}
-                    value={qty}
-                    onChange={(e) => onSetQty(sph, parseInt(e.target.value) || 0)}
-                    onKeyDown={(e) => handleKeyDown(e, sph)}
-                    onFocus={(e) => e.target.select()}
-                    placeholder="0"
-                    className={`w-full min-w-[48px] px-1 py-1.5 text-center text-sm rounded-lg border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 transition ${
-                      overStock
-                        ? 'border-red-400 focus:ring-red-500 text-red-700'
-                        : entered > 0
-                        ? 'border-sky-400 focus:ring-sky-500 text-sky-700 font-bold bg-sky-50'
-                        : 'border-slate-200 focus:ring-sky-500 text-slate-700'
-                    }`}
-                  />
-                </td>
-              );
-            })}
-          </tr>
-        </tbody>
-      </table>
+                    <div className="font-mono text-xs font-bold tracking-tight">{formatSPH(sph)}</div>
+                    <div
+                      className={`text-[10px] font-medium mt-0.5 font-sans ${
+                        isOutOfStock
+                          ? 'text-rose-500 font-bold'
+                          : isLowStock
+                          ? 'text-amber-600 font-bold'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {isOutOfStock ? 'نفذت' : `(${stock})`}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="sticky right-0 z-10 bg-slate-50 font-bold px-3 py-2 text-center text-xs text-slate-600 border-l border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                الكمية
+              </td>
+              {slice.map((sph) => {
+                const key = selected ? `${selected.id}:${sph}` : '';
+                const qty = selected ? quantities[key] || '' : '';
+                const stock = selected ? stockMap.get(key) ?? 0 : 0;
+                const entered = selected ? quantities[key] || 0 : 0;
+                const overStock = entered > stock;
+
+                return (
+                  <td key={sph} className="p-1">
+                    <input
+                      ref={(el) => {
+                        if (el && selected) inputRefs.current.set(key, el);
+                      }}
+                      type="number"
+                      min={0}
+                      value={qty}
+                      onChange={(e) => onSetQty(sph, parseInt(e.target.value) || 0)}
+                      onKeyDown={(e) => handleKeyDown(e, sph)}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0"
+                      className={`w-full h-9 text-center font-mono text-sm font-semibold rounded-md border transition-all duration-150 focus:outline-none ${
+                        overStock
+                          ? 'border-rose-400 bg-rose-50/80 text-rose-800 ring-2 ring-rose-300/50'
+                          : entered > 0
+                          ? 'border-indigo-500 bg-indigo-50/60 text-indigo-950 ring-2 ring-indigo-200/60 font-bold shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+                      }`}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     );
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <Grid3x3 className="w-5 h-5 text-sky-600" />
-          <h2 className="font-bold text-slate-800">مصفوفة القوة (SPH Matrix)</h2>
+    <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden text-slate-800 dir-rtl">
+      {/* Header Bar */}
+      <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-500/20 border border-indigo-400/30 rounded-xl">
+            <Grid3x3 className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h2 className="font-bold text-base tracking-wide">مصفوفة قوّات العدسات (SPH Matrix)</h2>
+            <p className="text-xs text-slate-400 mt-0.5">إدارة شاشات الجرد وإدخال الطلبيات السريعة للمستودع</p>
+          </div>
         </div>
+
         <button
           onClick={onClear}
           disabled={totalQty === 0}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-rose-300 bg-rose-950/40 border border-rose-800/40 hover:bg-rose-900/50 hover:text-rose-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
         >
-          <Trash2 className="w-4 h-4" /> مسح الكميات
+          <Trash2 className="w-3.5 h-3.5" /> مسح المدخلات
         </button>
       </div>
 
-      {/* Lens specs controls */}
-      <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center gap-3 flex-wrap justify-between">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500">العلامة</label>
+      {/* Control Toolbar */}
+      <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-200/70 flex items-center justify-between flex-wrap gap-4">
+        {/* Brand selection */}
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-slate-400" />
+            العلامة التجارية:
+          </label>
           <select
             value={selectedLensId}
             onChange={(e) => onSelectLens(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           >
             {uniqueLensProducts.map((l) => (
               <option key={l.id} value={l.id}>
@@ -237,80 +266,89 @@ export function SphMatrix({
               </option>
             ))}
           </select>
+
+          {selected && (
+            <div className="px-3 py-1 bg-slate-200/60 rounded-lg text-xs font-medium text-slate-700">
+              سعر العلبة: <strong className="text-slate-900 font-bold">{formatILS(selected.unit_price)}</strong>
+            </div>
+          )}
         </div>
 
-        {selected && (
-          <span className="text-xs text-slate-500">
-            السعر: <strong className="text-slate-700">{formatILS(selected.unit_price)}</strong> / علبة
-          </span>
-        )}
+        {/* Live Summary Indicators */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200 rounded-xl shadow-sm text-xs font-medium">
+            <span className="text-slate-500">إجمالي القطع:</span>
+            <span className="font-bold font-mono text-sm text-indigo-600">{totalQty}</span>
+          </div>
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50/60 border border-emerald-200 rounded-xl shadow-sm text-xs font-medium">
+            <span className="text-emerald-700">القيمة الإجمالية:</span>
+            <span className="font-bold font-mono text-sm text-emerald-800">{formatILS(totalValue)}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Toric toggle + +/- sign toggle */}
-      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+      {/* Configuration Toggles */}
+      <div className="px-6 py-3.5 bg-white border-b border-slate-100 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Toric toggle */}
+          {/* Toric Toggle */}
           <button
             onClick={() => onToricChange(!isToric)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
               isToric
-                ? 'border-violet-500 bg-violet-50 text-violet-700'
-                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                ? 'border-purple-500 bg-purple-50/80 text-purple-900 shadow-sm ring-2 ring-purple-100'
+                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <SlidersHorizontal className="w-4 h-4" />
-            توريك (استجماتيزم)
+            <SlidersHorizontal className="w-4 h-4 text-purple-600" />
+            عدسات توريك (Toric Astigmatism)
           </button>
 
-          {/* +/- Toggle */}
-          <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          {/* Plus / Minus Sign Switcher */}
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100/80 p-1 shadow-inner">
             <button
               onClick={() => onSphSignChange('minus')}
-              className={`flex items-center gap-1.5 px-5 py-2 text-sm font-bold transition ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 sphSign === 'minus'
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-white text-slate-500 hover:bg-slate-50'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Minus className="w-4 h-4" />
+              <Minus className="w-3.5 h-3.5" />
               سالب (−)
             </button>
             <button
               onClick={() => onSphSignChange('plus')}
-              className={`flex items-center gap-1.5 px-5 py-2 text-sm font-bold transition ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 sphSign === 'plus'
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-white text-slate-500 hover:bg-slate-50'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               موجب (+)
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-slate-600">
-            إجمالي الكمية: <strong className="text-sky-700">{totalQty}</strong>
-          </span>
-          <span className="text-slate-600">
-            إجمالي القيمة: <strong className="text-emerald-700">{formatILS(totalValue)}</strong>
-          </span>
+        {/* Dynamic Controls Info */}
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <Info className="w-3.5 h-3.5 text-indigo-500" />
+          <span>استخدم <strong>Enter</strong> أو <strong>الأسهم</strong> للتنقل السريع بين المقاسات</span>
         </div>
       </div>
 
-      {/* CYL / AXIS controls (only when toric is enabled) */}
+      {/* Toric Controls Bar */}
       {isToric && (
-        <div className="px-5 py-3 bg-violet-50/30 border-b border-violet-100 flex items-center gap-4 flex-wrap animate-fade-in">
+        <div className="px-6 py-3 bg-purple-50/50 border-b border-purple-100 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <RotateCw className="w-4 h-4 text-violet-500" />
-            <label className="text-xs font-medium text-violet-700">CYL</label>
+            <RotateCw className="w-3.5 h-3.5 text-purple-600" />
+            <label className="text-xs font-bold text-purple-900">CYL:</label>
             <select
               value={selectedCYL ?? ''}
               onChange={(e) => onCYLChange(e.target.value ? parseFloat(e.target.value) : null)}
-              className="px-3 py-1.5 rounded-lg border border-violet-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-1.5 rounded-lg border border-purple-200 bg-white text-xs font-semibold text-purple-950 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
-              <option value="">— اختر —</option>
+              <option value="">— اختر SPH CYL —</option>
               {CYL_VALUES.map((cyl) => (
                 <option key={cyl} value={cyl}>
                   {formatSPH(cyl)}
@@ -318,14 +356,15 @@ export function SphMatrix({
               ))}
             </select>
           </div>
+
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-violet-700">AXIS</label>
+            <label className="text-xs font-bold text-purple-900">AXIS:</label>
             <select
               value={selectedAXIS ?? ''}
               onChange={(e) => onAXISChange(e.target.value ? parseInt(e.target.value) : null)}
-              className="px-3 py-1.5 rounded-lg border border-violet-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-1.5 rounded-lg border border-purple-200 bg-white text-xs font-semibold text-purple-950 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
-              <option value="">— اختر —</option>
+              <option value="">— اختر المحور —</option>
               {AXIS_VALUES.map((axis) => (
                 <option key={axis} value={axis}>
                   {axis}°
@@ -333,31 +372,28 @@ export function SphMatrix({
               ))}
             </select>
           </div>
+
           {(!selectedCYL || !selectedAXIS) && (
-            <span className="text-xs text-amber-600">يرجى اختيار CYL و AXIS لإضافة عدسات توريك</span>
+            <span className="text-xs font-semibold text-amber-700 bg-amber-100/60 px-2.5 py-1 rounded-md border border-amber-200/80">
+              تنبيه: يلزم تحديد قيمة CYL والمحور AXIS لإضافة التوريك للسلة
+            </span>
           )}
         </div>
       )}
 
-      <div className="px-5 py-2 bg-sky-50/30 border-b border-sky-100">
-        <span className="text-xs text-slate-400">
-          الأرقام بين الأقواس = المخزون المتاح · Enter للانتقال للتالي · الأسهم للتنقل
-        </span>
-      </div>
-
-      {/* Grid */}
-      <div className="p-5 overflow-x-auto space-y-2">
+      {/* Grid Container */}
+      <div className="p-6 bg-slate-50/30">
         {rows.map((slice, rowIdx) => (
           <div key={rowIdx}>{renderSphRow(slice)}</div>
         ))}
 
         {totalQty === 0 && (
-          <div className="mt-4 flex flex-col items-center justify-center text-slate-400 py-6 border border-dashed border-slate-200 rounded-xl">
-            <Package className="w-8 h-8 mb-2 opacity-50" />
-            <p className="text-sm">
-              أدخل الكميات لكل قوة عدسة ({sphSign === 'minus' ? 'سالبة' : 'موجبة'}) لإضافتها إلى السلة
+          <div className="py-8 flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-300 rounded-xl bg-white/50">
+            <Package className="w-10 h-10 mb-2 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-600">
+              الماتريكس جاهزة لإدخال كميات العدسات ({sphSign === 'minus' ? 'السالبة −' : 'الموجبة +'})
             </p>
-            <p className="text-xs mt-1 text-slate-400">استخدم Enter للتنقل السريع بين الخلايا</p>
+            <p className="text-xs mt-1 text-slate-400">انقر على أي خلية وادخل العدد مباشرةً</p>
           </div>
         )}
 
@@ -369,9 +405,9 @@ export function SphMatrix({
           );
           if (overs.length > 0) {
             return (
-              <div className="mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>الكمية المدخلة تتجاوز المخزون المتاح في {overs.length} قوة عدسة</span>
+              <div className="mt-2 flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs font-bold text-rose-800">
+                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <span>تحذير: الكمية المدخلة تتجاوز الرصيد المتوفر بالمخزون لـ ({overs.length}) مقاسات مختلفة!</span>
               </div>
             );
           }
@@ -379,27 +415,34 @@ export function SphMatrix({
         })()}
       </div>
 
-      {/* Custom Prescription Panel */}
-      <div className="border-t border-slate-100">
+      {/* Custom Prescription Section */}
+      <div className="border-t border-slate-200 bg-white">
         <button
           onClick={() => setShowCustom(!showCustom)}
-          className="w-full px-5 py-3 flex items-center justify-between text-sm font-bold text-slate-600 hover:bg-slate-50 transition"
+          className="w-full px-6 py-3.5 flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
         >
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 text-indigo-900">
             <Sparkles className="w-4 h-4 text-amber-500" />
-            مقاس خاص / وصفة مخصصة (Custom Prescription)
+            إدخال وصفة أو مقاس خاص (Custom Prescription)
           </span>
-          <span className="text-xs text-slate-400">{showCustom ? 'إخفاء ▲' : 'إظهار ▼'}</span>
+          <span className="text-slate-400 flex items-center gap-1 font-normal">
+            {showCustom ? (
+              <>إخفاء القائمة <ChevronUp className="w-4 h-4" /></>
+            ) : (
+              <>إظهار الإعدادات الخاصة <ChevronDown className="w-4 h-4" /></>
+            )}
+          </span>
         </button>
 
         {showCustom && (
-          <div className="px-5 py-4 bg-amber-50/30 border-t border-amber-100 animate-fade-in">
-            <p className="text-xs text-slate-500 mb-3">
-              أدخل قيمة SPH خارج النطاق القياسي (من {CUSTOM_SPH_MIN} إلى {CUSTOM_SPH_MAX}) مع إمكانية إضافة CYL و AXIS
+          <div className="px-6 py-5 bg-amber-50/20 border-t border-amber-100/60 animate-fade-in">
+            <p className="text-xs font-medium text-slate-500 mb-4">
+              يمكنك كتابة درجات SPH الخاصة من ({CUSTOM_SPH_MIN} إلى {CUSTOM_SPH_MAX}) مع إضافة القيم الاختيارية لـ CYL و AXIS.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">SPH مخصص</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">SPH مخصص</label>
                 <input
                   type="number"
                   step={0.25}
@@ -415,11 +458,12 @@ export function SphMatrix({
                     })
                   }
                   placeholder="مثال: -15.00"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">CYL (اختياري)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">CYL (اختياري)</label>
                 <input
                   type="number"
                   step={0.25}
@@ -433,11 +477,12 @@ export function SphMatrix({
                     })
                   }
                   placeholder="مثال: -2.25"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">AXIS° (اختياري)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">AXIS° (اختياري)</label>
                 <input
                   type="number"
                   step={10}
@@ -453,11 +498,12 @@ export function SphMatrix({
                     })
                   }
                   placeholder="مثال: 90"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">الكمية</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">الكمية</label>
                 <input
                   type="number"
                   min={1}
@@ -470,18 +516,21 @@ export function SphMatrix({
                       quantity: parseInt(e.target.value) || 1,
                     })
                   }
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-sm font-mono font-bold rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
                 />
               </div>
             </div>
-            <button
-              onClick={onAddCustomPrescription}
-              disabled={!customPrescription || !customPrescription.sph}
-              className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
-            >
-              <Sparkles className="w-4 h-4" />
-              إضافة المقاس الخاص للسلة
-            </button>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={onAddCustomPrescription}
+                disabled={!customPrescription || !customPrescription.sph}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                إضافة المقاس الخاص إلى السلة
+              </button>
+            </div>
           </div>
         )}
       </div>

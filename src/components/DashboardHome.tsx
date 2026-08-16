@@ -73,10 +73,10 @@ export function DashboardHome({
 
   return (
     <div className="space-y-6">
-      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة (في الأعلى) */}
+      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة */}
       <div className="space-y-4">
-        {/* البوكس العريض بالكامل بلون أزرق فاتح متميز ومريح */}
-        <div className="bg-gradient-to-r from-sky-500 to-sky-600 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-sky-400">
+        {/* البوكس العريض بلون أزرق متميز */}
+        <div className="bg-sky-500 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-sky-400">
           <div>
             <h1 className="text-2xl font-black text-white drop-shadow-sm">
               لوحة تحكم Pure Vision Optics
@@ -90,7 +90,7 @@ export function DashboardHome({
           </span>
         </div>
 
-        {/* كروت الإحصائيات */}
+        {/* كروت الإحصائيات الأربعة */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* إجمالي المبيعات */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -138,7 +138,31 @@ export function DashboardHome({
         </div>
       </div>
 
-      {/* 2. البيانات والعمليات (أحدث الطلبات) (في الوسط) */}
+      {/* 2. ورقة الإجراءات السريعة والطلبات (مباشرة تحت لوحة التحكم) */}
+      <div className="bg-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold">ورقة الإجراءات السريعة والطلبات</h2>
+          <p className="text-xs text-sky-200 mt-1">
+            يمكنك البدء فوراً بإنشاء طلب جديد أو الانتقال للتحقق من جرد المخزون.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => onNavigate('new-order')}
+            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm flex items-center gap-2"
+          >
+            <span>➕</span> طلب جديد
+          </button>
+          <button
+            onClick={() => onNavigate('inventory')}
+            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition flex items-center gap-2"
+          >
+            <span>📦</span> جرد المخزون
+          </button>
+        </div>
+      </div>
+
+      {/* 3. أحدث الطلبات والعمليات (البيانات في الأسفل) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <h3 className="font-bold text-slate-800 text-base">📋 أحدث الطلبات والعمليات المسجلة</h3>
@@ -191,7 +215,7 @@ export function DashboardHome({
                         {ord.status === 'confirmed' ? 'مؤكد' : ord.status === 'draft' ? 'مسودة' : 'ملغى'}
                       </span>
                     </td>
-                    <td className="p-3 font-extrabold text-sky-700">{formatILS(ord.total)}</td>
+                    <td className="p-3 font-extrabold text-sky-800">{formatILS(ord.total)}</td>
                   </tr>
                 ))
               ) : (
@@ -203,28 +227,6 @@ export function DashboardHome({
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* 3. الورقة والإجراءات السريعة (في الأسفل) */}
-      <div className="bg-gradient-to-r from-sky-800 to-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold">ورقة الإجراءات السريعة والطلبات</h2>
-          <p className="text-xs text-sky-200 mt-1">يمكنك البدء فوراً بإنشاء طلب جديد أو الانتقال للتحقق من جرد المخزون.</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => onNavigate('new-order')}
-            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm"
-          >
-            ➕ طلب جديد
-          </button>
-          <button
-            onClick={() => onNavigate('inventory')}
-            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition"
-          >
-            📦 جرد المخزون
-          </button>
         </div>
       </div>
     </div>

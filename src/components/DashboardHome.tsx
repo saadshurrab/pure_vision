@@ -73,11 +73,14 @@ export function DashboardHome({
 
   return (
     <div className="space-y-6">
-      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة (فوق) */}
+      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة (في الأعلى) */}
       <div className="space-y-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <h1 className="text-2xl font-black text-slate-800">لوحة تحكم Pure Vision Optics</h1>
+            {/* العنوان بلون أزرق فاتح مميز */}
+            <h1 className="text-2xl font-black text-sky-500 bg-gradient-to-r from-sky-400 to-sky-600 bg-clip-text text-transparent">
+              لوحة تحكم Pure Vision Optics
+            </h1>
             <p className="text-xs text-slate-500 mt-1">
               متابعة حركة المبيعات، المخزون، والديون المستحقة بشكل مباشر.
             </p>
@@ -87,6 +90,7 @@ export function DashboardHome({
           </span>
         </div>
 
+        {/* كروت الإحصائيات */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* إجمالي المبيعات */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -114,7 +118,7 @@ export function DashboardHome({
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-500 mb-1">العملاء المسجلين</p>
-              <h3 className="text-2xl font-black text-sky-700">{clientsCount} عميل</h3>
+              <h3 className="text-2xl font-black text-sky-600">{clientsCount} عميل</h3>
             </div>
             <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xl font-bold">
               👥
@@ -134,7 +138,7 @@ export function DashboardHome({
         </div>
       </div>
 
-      {/* 2. البيانات والعمليات (أحدث الطلبات) (بالوسط) */}
+      {/* 2. البيانات والعمليات (أحدث الطلبات) (في الوسط) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <h3 className="font-bold text-slate-800 text-base">📋 أحدث الطلبات والعمليات المسجلة</h3>
@@ -187,7 +191,7 @@ export function DashboardHome({
                         {ord.status === 'confirmed' ? 'مؤكد' : ord.status === 'draft' ? 'مسودة' : 'ملغى'}
                       </span>
                     </td>
-                    <td className="p-3 font-extrabold text-sky-800">{formatILS(ord.total)}</td>
+                    <td className="p-3 font-extrabold text-sky-700">{formatILS(ord.total)}</td>
                   </tr>
                 ))
               ) : (
@@ -202,7 +206,7 @@ export function DashboardHome({
         </div>
       </div>
 
-      {/* 3. الورقة والإجراءات السريعة (تحت في الأسفل) */}
+      {/* 3. الورقة والإجراءات السريعة (في الأسفل) */}
       <div className="bg-gradient-to-r from-sky-800 to-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-xl font-bold">ورقة الإجراءات السريعة والطلبات</h2>

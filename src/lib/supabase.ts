@@ -3,8 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+// ── إعدادات الاتصال بـ Supabase مع زيادة الأمان للجلسات ──
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: false },
+  auth: {
+    // 💡 الحفظ في sessionStorage يضمن تسجيل الخروج التلقائي بمجرد إغلاق التبويب/المتصفح
+    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
 });
 
 // ── Currency helper ──
@@ -90,7 +96,7 @@ export interface Client {
   code: string;
   city?: string;
   phone?: string;
-  outstanding_balance: number; // إجمالي الدين الحكالي/الرصيد النهائي
+  outstanding_balance: number; // إجمالي الدين الحالي/الرصيد النهائي
   total_paid: number;          // إجمالي الدائن (الواصل)
   active: boolean;
 }

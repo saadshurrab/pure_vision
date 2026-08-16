@@ -38,7 +38,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
       {/* زر القائمة للشاشات الصغيرة */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="md:hidden fixed top-3 right-3 z-50 bg-slate-900 text-slate-200 p-2 rounded-lg shadow-md border border-slate-700/60 hover:bg-slate-800 transition"
+        className="md:hidden fixed top-3 right-3 z-50 bg-slate-900 text-slate-200 p-2 rounded-lg shadow-md border border-slate-700/60 hover:bg-slate-800 transition-colors duration-200"
         aria-label="Toggle Menu"
       >
         {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -52,15 +52,15 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
         />
       )}
 
-      {/* القائمة الجانبية الرسمية */}
+      {/* القائمة الجانبية */}
       <aside
-        className={`fixed top-0 right-0 h-screen bg-slate-900 text-slate-300 z-40 transition-all duration-300 ease-in-out flex flex-col border-l border-slate-800 shadow-2xl select-none ${
+        className={`fixed top-0 right-0 h-screen bg-slate-900 text-slate-300 z-40 transition-[width] duration-300 ease-in-out flex flex-col border-l border-slate-800 shadow-2xl select-none ${
           isCollapsed ? 'w-16' : 'w-60'
         } ${
           isMobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         }`}
       >
-        {/* هيدر القائمة - الهوية الرسمية */}
+        {/* هيدر القائمة */}
         <div className="h-14 px-3.5 border-b border-slate-800/80 flex items-center justify-between">
           {!isCollapsed && (
             <div className="flex items-center gap-2.5 overflow-hidden">
@@ -76,7 +76,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
 
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`hidden md:flex p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 rounded-md transition ${
+            className={`hidden md:flex p-1.5 text-slate-400 hover:text-slate-100 hover:bg-white/[0.06] rounded-md transition-colors duration-200 ${
               isCollapsed ? 'mx-auto' : ''
             }`}
             title={isCollapsed ? "توسيع القائمة" : "طَي القائمة"}
@@ -85,7 +85,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
           </button>
         </div>
 
-        {/* عناصر القائمة الرسمية */}
+        {/* عناصر القائمة */}
         <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -97,19 +97,24 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
                   setActiveTab(item.id);
                   setIsMobileOpen(false);
                 }}
-                className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-medium transition-all duration-150 ${
+                className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium border border-transparent transition-[background-color,color,border-color] duration-200 ${
                   isActive
-                    ? 'bg-sky-500/10 text-sky-400 font-semibold border border-sky-500/20'
-                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                    ? 'bg-sky-500/[0.08] text-sky-400 font-semibold border-sky-500/20'
+                    : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
                 } ${isCollapsed ? 'justify-center px-0' : ''}`}
                 title={isCollapsed ? item.label : undefined}
               >
-                {/* مؤشر رمزي جانب العنصر النشط */}
+                {/* مؤشر العنصر النشط */}
                 {isActive && (
-                  <span className="absolute right-0 top-1.5 bottom-1.5 w-1 bg-sky-400 rounded-l-full" />
+                  <span className="absolute right-0 top-2 bottom-2 w-[3px] bg-sky-400 rounded-l-full" />
                 )}
 
-                <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+                <Icon 
+                  size={18} 
+                  className={`flex-shrink-0 transition-colors duration-200 ${
+                    isActive ? 'text-sky-400' : 'text-slate-400 group-hover:text-slate-200'
+                  }`} 
+                />
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
               </button>
             );
@@ -120,12 +125,15 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
         <div className="p-2 border-t border-slate-800/80">
           <button
             onClick={onLogout}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 hover:border hover:border-rose-500/20 transition ${
+            className={`group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 border border-transparent transition-[background-color,color] duration-200 hover:bg-white/[0.04] hover:text-rose-400 ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
             title={isCollapsed ? "تسجيل الخروج" : undefined}
           >
-            <LogOut size={18} className="flex-shrink-0" />
+            <LogOut 
+              size={18} 
+              className="flex-shrink-0 text-slate-400 group-hover:text-rose-400 transition-colors duration-200" 
+            />
             {!isCollapsed && <span>تسجيل الخروج</span>}
           </button>
         </div>

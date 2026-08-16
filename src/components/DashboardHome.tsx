@@ -75,17 +75,17 @@ export function DashboardHome({
     <div className="space-y-6">
       {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة (في الأعلى) */}
       <div className="space-y-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        {/* البوكس العريض بالكامل بلون أزرق فاتح متميز ومريح */}
+        <div className="bg-gradient-to-r from-sky-500 to-sky-600 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-sky-400">
           <div>
-            {/* العنوان بلون أزرق فاتح مميز */}
-            <h1 className="text-2xl font-black text-sky-500 bg-gradient-to-r from-sky-400 to-sky-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-black text-white drop-shadow-sm">
               لوحة تحكم Pure Vision Optics
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-sky-100 mt-1 font-medium">
               متابعة حركة المبيعات، المخزون، والديون المستحقة بشكل مباشر.
             </p>
           </div>
-          <span className="bg-sky-50 text-sky-700 font-bold text-xs px-3 py-1.5 rounded-lg border border-sky-200">
+          <span className="bg-white/20 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-lg border border-white/30 shadow-inner">
             النظام يعمل بكفاءة 🟢
           </span>
         </div>

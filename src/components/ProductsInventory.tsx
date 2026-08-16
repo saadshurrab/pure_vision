@@ -1,5 +1,20 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Eye, Package, Search, Box, PlusCircle, X } from 'lucide-react';
+import {
+  Eye,
+  Package,
+  Search,
+  Box,
+  PlusCircle,
+  X,
+  TrendingDown,
+  Warehouse,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Layers,
+  Sparkles,
+  ArrowUpRight,
+} from 'lucide-react';
 import { supabase, formatILS, type Product, type LensProduct } from '@/lib/supabase';
 
 interface Props {
@@ -17,7 +32,7 @@ export function ProductsInventory({
   stockMap = new Map(),
   onRefreshData,
 }: Props) {
-  // تبويب العرض (العدسات أو المنتجات العامة)
+  // تبويب العرض (المستلزمات والمحاليل أو عدسات SPH)
   const [activeTab, setActiveTab] = useState<'general' | 'lenses'>('general');
 
   // حالات المنتجات العامة
@@ -141,6 +156,13 @@ export function ProductsInventory({
     }, 0);
   }, [products]);
 
+  const totalInventoryValue = useMemo(() => {
+    return products.reduce((sum, p) => {
+      const remaining = Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0));
+      return sum + remaining * (p.unit_price || 0);
+    }, 0);
+  }, [products]);
+
   // العثور على العدسة المحددة
   const selectedLens = useMemo(() => {
     return lensProducts.find((l) => l.id === selectedLensId);
@@ -157,133 +179,174 @@ export function ProductsInventory({
   }, [lensProducts]);
 
   return (
-    <div className="space-y-6" dir="rtl">
-      {/* 1. أزرار التنقل بين المكونات */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-start gap-2">
-        <button
-          onClick={() => setActiveTab('general')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'general'
-              ? 'bg-sky-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          المستلزمات والمحاليل
-        </button>
+    <div className="space-y-6 text-slate-800" dir="rtl">
+      {/* 1. أزرار التنقل الرئيسية بين المكونات */}
+      <div className="bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-md flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+              activeTab === 'general'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-400/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            المستلزمات والمحاليل
+          </button>
 
-        <button
-          onClick={() => setActiveTab('lenses')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'lenses'
-              ? 'bg-sky-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Eye className="w-4 h-4" />
-          مخزون العدسات (SPH)
-        </button>
+          <button
+            onClick={() => setActiveTab('lenses')}
+            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+              activeTab === 'lenses'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-400/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <Eye className="w-4 h-4" />
+            مخزون العدسات (SPH Matrix)
+          </button>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-800/60 rounded-xl text-slate-400 text-xs border border-slate-700/50 ml-2">
+          <Warehouse className="w-3.5 h-3.5 text-indigo-400" />
+          <span>مستودع الرؤيا النقية</span>
+        </div>
       </div>
 
       {/* ======================= التبويب الأول: المستلزمات والمحاليل ======================= */}
       {activeTab === 'general' && (
         <div className="space-y-6">
-          {/* بطاقات الإحصائيات السريعة */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex justify-between items-center shadow-xs">
+          {/* بطاقات الإحصائيات القيادية */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-amber-700">إجمالي قطع المنتجات المستهلكة (المباعة)</p>
-                <h3 className="text-3xl font-bold text-amber-800 mt-1">{totalItemsConsumed} قطعة</h3>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">القطع المباعة (المستهلكة)</p>
+                <h3 className="text-2xl font-black text-slate-800 font-mono mt-1">{totalItemsConsumed} <span className="text-xs font-sans font-medium text-slate-500">قطعة</span></h3>
               </div>
-              <span className="text-4xl" role="img" aria-label="box">📦</span>
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100 text-amber-600">
+                <TrendingDown className="w-6 h-6" />
+              </div>
             </div>
 
-            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 flex justify-between items-center shadow-xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-sky-700">إجمالي القطع المتبقية بالمخزن</p>
-                <h3 className="text-3xl font-bold text-sky-800 mt-1">{totalItemsRemaining} قطعة</h3>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">القطع المتبقية بالمخزن</p>
+                <h3 className="text-2xl font-black text-indigo-900 font-mono mt-1">{totalItemsRemaining} <span className="text-xs font-sans font-medium text-slate-500">قطعة</span></h3>
               </div>
-              <span className="text-4xl" role="img" aria-label="store">🏬</span>
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100 text-indigo-600">
+                <Package className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">القيمة الإجمالية للمخزون</p>
+                <h3 className="text-2xl font-black text-emerald-700 font-mono mt-1">{formatILS(totalInventoryValue)}</h3>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-600">
+                <ArrowUpRight className="w-6 h-6" />
+              </div>
             </div>
           </div>
 
           {/* قائمة وجدول المنتجات */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">حركة المخزون والمنتجات</h2>
-                <p className="text-sm text-slate-500">متابعة المنتجات المستهلكة والكميات المتبقية والمتاحة للبيع</p>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Box className="w-5 h-5 text-indigo-600" />
+                  حركة ومخزون المستلزمات الطبية والمحاليل
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">متابعة دقيقة للرصيد المتاح والأصناف المباعة</p>
               </div>
 
-              <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="بحث باسم المنتج أو الكود (SKU)..."
+                  placeholder="بحث باسم المنتج، SKU أو التصنيف..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl pr-9 pl-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-slate-300/80 bg-slate-50/50 rounded-xl pr-9 pl-4 py-2 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
               </div>
             </div>
 
             {loading ? (
-              <div className="p-8 text-center text-slate-500 font-bold animate-pulse">جاري تحميل قائمة المنتجات...</div>
+              <div className="p-12 text-center text-slate-400 font-bold flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                <span className="text-xs">جاري تحميل وسحب المنتجات من المستودع...</span>
+              </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 font-medium">لا توجد منتجات مطابقة لعملية البحث.</div>
+              <div className="p-12 text-center text-slate-400 text-xs font-medium">
+                لا توجد أصناف مطابقة لبيانات البحث الحالية.
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-right border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-                      <th className="p-3">الكود (SKU)</th>
-                      <th className="p-3">اسم المنتج</th>
-                      <th className="p-3">التصنيف</th>
-                      <th className="p-3">السعر</th>
-                      <th className="p-3">الكمية الكلية</th>
-                      <th className="p-3">المستهلك (المباع)</th>
-                      <th className="p-3">المتبقي بالمخزن</th>
-                      <th className="p-3 text-center">تغذية المخزون</th>
+                    <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="p-3.5 pr-6">الكود (SKU)</th>
+                      <th className="p-3.5">اسم المنتج</th>
+                      <th className="p-3.5">التصنيف</th>
+                      <th className="p-3.5">سعر الوحدة</th>
+                      <th className="p-3.5 text-center">الإجمالي بالشهادات</th>
+                      <th className="p-3.5 text-center">المباع</th>
+                      <th className="p-3.5 text-center">المتبقي بالفحص</th>
+                      <th className="p-3.5 text-center pl-6">تغذية المخزون</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody className="divide-y divide-slate-100 text-xs">
                     {filteredProducts.map((p) => {
                       const totalStock = p.stock_qty || 0;
                       const consumed = p.consumed_stock || 0;
                       const remaining = Math.max(0, totalStock - consumed);
-                      const isLowStock = remaining <= 5;
+                      const isLowStock = remaining > 0 && remaining <= 5;
+                      const isOutOfStock = remaining <= 0;
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3 font-mono text-slate-500 text-xs">{p.sku || '—'}</td>
-                          <td className="p-3 font-semibold text-slate-800">{p.name}</td>
-                          <td className="p-3 text-slate-500 text-xs">{p.category || 'عام'}</td>
-                          <td className="p-3 font-medium text-slate-700">{formatILS(p.unit_price)}</td>
-                          <td className="p-3 font-medium text-slate-600">{totalStock}</td>
-                          <td className="p-3 font-bold text-amber-600">{consumed} قطعة</td>
-                          <td className="p-3 font-bold">
-                            <span
-                              className={`inline-block px-2.5 py-1 rounded-lg ${
-                                remaining <= 0
-                                  ? 'bg-red-100 text-red-700'
-                                  : isLowStock
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}
-                            >
-                              {remaining > 0 ? `${remaining} قطعة` : 'نفذت الكمية ⚠️'}
+                        <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-3.5 pr-6 font-mono text-slate-500 text-[11px]">{p.sku || '—'}</td>
+                          <td className="p-3.5 font-bold text-slate-800">{p.name}</td>
+                          <td className="p-3.5 text-slate-500">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium text-[11px]">
+                              {p.category || 'عام'}
                             </span>
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3.5 font-semibold text-slate-700">{formatILS(p.unit_price)}</td>
+                          <td className="p-3.5 text-center font-mono font-medium text-slate-600">{totalStock}</td>
+                          <td className="p-3.5 text-center font-mono font-bold text-amber-700">{consumed}</td>
+                          <td className="p-3.5 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                                isOutOfStock
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                                  : isLowStock
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-200/80'
+                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
+                              }`}
+                            >
+                              {isOutOfStock ? (
+                                <>
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                  نفذت الكمية
+                                </>
+                              ) : (
+                                `${remaining} قطعة`
+                              )}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center pl-6">
                             <button
                               onClick={() => {
                                 setSelectedProduct(p);
                                 setAddStockAmount(0);
                               }}
-                              className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1 cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs"
                             >
                               <PlusCircle className="w-3.5 h-3.5" />
-                              إضافة كمية
+                              إضافة شحنة
                             </button>
                           </td>
                         </tr>
@@ -299,25 +362,28 @@ export function ProductsInventory({
 
       {/* ======================= التبويب الثاني: عدسات SPH ======================= */}
       {activeTab === 'lenses' && (
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+        <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Box className="w-5 h-5 text-sky-600" />
-                مخزون العدسات اللاصقة (حسب المقاس)
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Box className="w-5 h-5 text-indigo-600" />
+                استعلام وجرد مخزون العدسات اللاصقة (حسب المقاس)
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                اختر نوع العدسة للتعرف على كمية مقاسات الـ SPH المتوفرة
+              <p className="text-xs text-slate-500 mt-0.5">
+                متابعة دقيقة لكميات درجات الـ SPH المتوفرة في مستودع المركز
               </p>
             </div>
 
             {onSelectLens && lensProducts.length > 0 && (
               <div className="flex items-center gap-3">
-                <label className="text-sm font-bold text-slate-700">اختر ماركة العدسة:</label>
+                <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-slate-400" />
+                  علامة العدسة:
+                </label>
                 <select
                   value={selectedLensId}
                   onChange={(e) => onSelectLens(e.target.value)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 >
                   {uniqueLensProducts.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -330,59 +396,62 @@ export function ProductsInventory({
           </div>
 
           {selectedLens && (
-            <div className="bg-sky-50/60 rounded-xl p-4 border border-sky-100 flex items-center justify-between flex-wrap gap-3">
+            <div className="bg-indigo-50/40 rounded-2xl p-4 border border-indigo-100 flex items-center justify-between flex-wrap gap-3">
               <div>
-                <span className="text-xs font-bold text-sky-600 block">النوع المحدد حالياً:</span>
-                <h3 className="text-xl font-black text-sky-950">{selectedLens.brand}</h3>
+                <span className="text-[11px] font-bold text-indigo-600 block">العلامة التجارية المحددة حالياً:</span>
+                <h3 className="text-lg font-black text-indigo-950 mt-0.5">{selectedLens.brand}</h3>
               </div>
-              <span className="px-3 py-1 rounded-lg bg-white border border-sky-200 text-xs font-bold text-slate-700">
-                السعر: {formatILS(selectedLens.unit_price)}
-              </span>
+              <div className="px-3.5 py-1.5 bg-white border border-indigo-200/80 rounded-xl text-xs font-bold text-slate-800 shadow-2xs">
+                سعر العلبة: <span className="text-emerald-700 font-mono">{formatILS(selectedLens.unit_price)}</span>
+              </div>
             </div>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="overflow-hidden rounded-xl border border-slate-200/80">
             <table className="w-full text-right border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs font-bold border-b border-slate-200">
-                  <th className="p-3 text-center">قياس (SPH)</th>
-                  <th className="p-3 text-center">الكمية المتوفرة بالمخزن</th>
-                  <th className="p-3 text-center">حالة المخزون</th>
-                  <th className="p-3 text-center">تغذية المخزون</th>
+                <tr className="bg-slate-50/80 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200/80">
+                  <th className="p-3.5 text-center">قياس القوة (SPH)</th>
+                  <th className="p-3.5 text-center">الكمية المتاحة بالرصيد</th>
+                  <th className="p-3.5 text-center">حالة المخزون</th>
+                  <th className="p-3.5 text-center">تغذية السريعة</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {Array.from(stockMap.entries()).length > 0 ? (
                   Array.from(stockMap.entries()).map(([key, qty]) => {
                     const sph = key.split(':')[1] || key;
-                    const isLow = qty <= 3;
+                    const isLow = qty > 0 && qty <= 3;
+                    const isOutOfStock = qty === 0;
 
                     return (
-                      <tr key={key} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3 text-center font-bold text-slate-700" dir="ltr">{sph}</td>
-                        <td className="p-3 text-center font-bold text-slate-900">{qty} قطعة</td>
-                        <td className="p-3 text-center">
-                          {qty === 0 ? (
-                            <span className="inline-block px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+                      <tr key={key} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="p-3.5 text-center font-mono font-bold text-slate-800" dir="ltr">
+                          {sph}
+                        </td>
+                        <td className="p-3.5 text-center font-mono font-bold text-slate-900">{qty} علبة</td>
+                        <td className="p-3.5 text-center">
+                          {isOutOfStock ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold border border-rose-200/60">
                               غير متوفر
                             </span>
                           ) : isLow ? (
-                            <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[11px] font-bold border border-amber-200/60">
                               منخفض
                             </span>
                           ) : (
-                            <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200/60">
                               متوفر
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="p-3.5 text-center">
                           <button
                             onClick={() => {
                               setSelectedLensSph({ sph, currentQty: qty });
                               setAddLensStockAmount(0);
                             }}
-                            className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1 cursor-pointer"
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-all"
                           >
                             <PlusCircle className="w-3.5 h-3.5" />
                             تغذية
@@ -393,8 +462,8 @@ export function ProductsInventory({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400 font-medium">
-                      لا توجد بيانات عدسات حالياً لهذه الماركة.
+                    <td colSpan={4} className="p-8 text-center text-slate-400 text-xs font-medium">
+                      لا توجد بيانات مخزون مسجلة لهذه الماركة حالياً.
                     </td>
                   </tr>
                 )}
@@ -404,71 +473,83 @@ export function ProductsInventory({
         </section>
       )}
 
-      {/* 1. نافذة إدخال كميات جديدة لمنتج عام */}
+      {/* 1. نافذة Modal: إدخال كميات جديدة لمنتج عام */}
       {selectedProduct && (
-        <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in"
           onClick={() => setSelectedProduct(null)}
         >
-          <div 
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative"
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
+            <button
               onClick={() => setSelectedProduct(null)}
-              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition"
+              className="absolute top-4 left-4 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-slate-800 mb-2">تغذية مخزون المنتجات</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              المنتج: <strong className="text-slate-800">{selectedProduct.name}</strong>
-            </p>
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+                <Package className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">تغذية مخزون المنتجات</h3>
+                <p className="text-xs text-slate-500">تحديث كميات الشحنات الواردة للمستودع</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-4 text-xs">
+              <span className="text-slate-500 block">المنتج المحدد:</span>
+              <strong className="text-slate-800 text-sm font-bold block mt-0.5">{selectedProduct.name}</strong>
+            </div>
 
             <form onSubmit={handleAddStock} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">الكمية القادمة/المضافة (بالقطع)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">الكمية المضافة (بالقطع)</label>
                 <input
                   type="number"
                   min="1"
                   required
+                  autoFocus
                   value={addStockAmount || ''}
                   onChange={(e) => setAddStockAmount(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="مثال: 50"
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-base font-semibold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-mono font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 text-xs space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>الكمية المتبقية الحالية:</span>
-                  <span className="font-bold">
+                  <span>الرصيد المتبقي حالياً:</span>
+                  <span className="font-bold font-mono">
                     {Math.max(0, (selectedProduct.stock_qty || 0) - (selectedProduct.consumed_stock || 0))}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>الكمية المتبقية بعد التغذية:</span>
-                  <span className="font-bold text-emerald-600">
+                <div className="flex justify-between text-slate-800 font-bold border-t border-indigo-100/80 pt-1.5">
+                  <span>الرصيد المتاح بعد التحديث:</span>
+                  <span className="font-mono text-emerald-700">
                     {Math.max(0, (selectedProduct.stock_qty || 0) - (selectedProduct.consumed_stock || 0)) + addStockAmount}
                   </span>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 space-x-reverse pt-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setSelectedProduct(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving || addStockAmount <= 0}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold shadow-sm cursor-pointer transition"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition"
                 >
-                  {saving ? 'جاري الحفظ...' : 'حفظ التغيرات ✅'}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {saving ? 'جاري الحفظ...' : 'تأكيد التغذية'}
                 </button>
               </div>
             </form>
@@ -476,72 +557,83 @@ export function ProductsInventory({
         </div>
       )}
 
-      {/* 2. نافذة إدخال كميات جديدة لعدسة (SPH) */}
+      {/* 2. نافذة Modal: إدخال كميات جديدة لعدسة (SPH) */}
       {selectedLensSph && (
-        <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in"
           onClick={() => setSelectedLensSph(null)}
         >
-          <div 
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative"
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
+            <button
               onClick={() => setSelectedLensSph(null)}
-              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition"
+              className="absolute top-4 left-4 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-slate-800 mb-2">تغذية مخزون العدسات</h3>
-            <p className="text-sm text-slate-600 mb-1">
-              ماركة العدسة: <strong className="text-slate-800">{selectedLens?.brand}</strong>
-            </p>
-            <p className="text-sm text-slate-600 mb-4">
-              قياس (SPH): <strong className="text-sky-700" dir="ltr">{selectedLensSph.sph}</strong>
-            </p>
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+                <Eye className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">تغذية مخزون العدسات</h3>
+                <p className="text-xs text-slate-500">تحديث كميات درجات SPH للعدسات</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-4 text-xs space-y-1">
+              <div className="text-slate-600">
+                الماركة: <strong className="text-slate-900">{selectedLens?.brand}</strong>
+              </div>
+              <div className="text-slate-600">
+                قياس (SPH): <strong className="text-indigo-700 font-mono" dir="ltr">{selectedLensSph.sph}</strong>
+              </div>
+            </div>
 
             <form onSubmit={handleAddLensStock} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">الكمية المضافة (بالقطع)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">الكمية المضافة (بالعلب)</label>
                 <input
                   type="number"
                   min="1"
                   required
+                  autoFocus
                   value={addLensStockAmount || ''}
                   onChange={(e) => setAddLensStockAmount(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="مثال: 10"
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-base font-semibold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-mono font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 text-xs space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>الكمية المتوفرة حالياً:</span>
-                  <span className="font-bold">{selectedLensSph.currentQty} قطعة</span>
+                  <span>الرصيد المتاح حالياً:</span>
+                  <span className="font-bold font-mono">{selectedLensSph.currentQty} علبة</span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>الكمية بعد الإضافة:</span>
-                  <span className="font-bold text-emerald-600">
-                    {selectedLensSph.currentQty + addLensStockAmount} قطعة
-                  </span>
+                <div className="flex justify-between text-slate-800 font-bold border-t border-indigo-100/80 pt-1.5">
+                  <span>الرصيد بعد الإضافة:</span>
+                  <span className="font-mono text-emerald-700">{selectedLensSph.currentQty + addLensStockAmount} علبة</span>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 space-x-reverse pt-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setSelectedLensSph(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving || addLensStockAmount <= 0}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold shadow-sm cursor-pointer transition"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition"
                 >
-                  {saving ? 'جاري الحفظ...' : 'حفظ التغيرات ✅'}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {saving ? 'جاري الحفظ...' : 'تأكيد التغذية'}
                 </button>
               </div>
             </form>

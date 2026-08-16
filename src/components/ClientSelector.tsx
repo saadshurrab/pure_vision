@@ -1,15 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Users, 
+  Building2, 
   MapPin, 
   Phone, 
-  TrendingDown, 
   Search, 
   X, 
-  ShoppingCart, 
-  FileText,
-  AlertCircle,
-  CheckCircle2
+  PlusCircle, 
+  FileText, 
+  AlertCircle, 
+  CheckCircle2,
+  ChevronLeft,
+  UserCheck,
+  CreditCard
 } from 'lucide-react';
 import type { Client } from '@/lib/supabase';
 import { formatILS } from '@/lib/supabase';
@@ -43,19 +45,16 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
     );
   }, [clients, searchTerm]);
 
-  // 🎯 دالة الضغط على إنشاء طلب جديد مع التمرير السلس للأسفل
+  // دالة إنشاء طلب جديد والتمرير
   const handleCreateOrder = (clientId: string) => {
-    // 1. استدعاء الدالة الخاصة بالأب (إن وجدت)
     if (onCreateOrder) {
       onCreateOrder(clientId);
     }
 
-    // 2. التمرير إلى قسم إنشاء الطلب أسفل الصفحة
     const orderSection = document.getElementById('order-section');
     if (orderSection) {
       orderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
-      // إذا لم يجد ID، ينزل لأسفل الصفحة كخطة بديلة
       window.scrollTo({
         top: window.scrollY + 600,
         behavior: 'smooth'
@@ -64,24 +63,24 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
   };
 
   return (
-    <div className="w-full space-y-4" dir="rtl">
+    <div className="w-full space-y-4 font-sans text-slate-800" dir="rtl">
       
-      {/* 🔍 1. شريط البحث العلوي */}
-      <div className="relative bg-white rounded-2xl border border-slate-200/80 shadow-sm p-1.5">
+      {/* 🔍 1. شريط البحث والتصفية */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2">
         <div className="relative flex items-center">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="ابحث باسم العميل، الكود، المدينة، أو الهاتف..."
-            className="w-full pr-11 pl-10 py-3 bg-slate-50/50 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-sky-500/20 transition"
+            placeholder="ابحث باسم المركز/العميل، الكود، المدينة، أو رقم الهاتف..."
+            className="w-full pr-10 pl-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
           />
-          <Search className="w-5 h-5 text-slate-400 absolute right-3.5" />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute left-3 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              className="absolute left-3 p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
             >
               <X className="w-4 h-4" />
             </button>
@@ -89,57 +88,58 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
         </div>
       </div>
 
-      {/* 2. جسم الواجهة */}
+      {/* 2. جسم الواجهة الرئيسي */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
-        {/* 📜 القسم الأيمن: قائمة العملاء */}
-        <div className="lg:col-span-6 space-y-2.5 max-h-[520px] overflow-y-auto pr-0.5 pl-1">
+        {/* 📜 القسم الأيمن: قائمة المراكز والعملاء */}
+        <div className="lg:col-span-6 space-y-2 max-h-[520px] overflow-y-auto pr-0.5 pl-1">
           {filteredClients.length > 0 ? (
             filteredClients.map((c) => {
               const isSelected = c.id === selectedClientId;
               const hasDebt = (c.outstanding_balance || 0) > 0;
-              const firstChar = c.name?.trim().charAt(0) || 'ع';
 
               return (
                 <div
                   key={c.id}
                   onClick={() => onSelect(c.id)}
-                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected
-                      ? 'bg-white border-sky-500 ring-2 ring-sky-500/30 shadow-md translate-x-[-2px]'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+                      ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 text-slate-800'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 transition ${
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition ${
                         isSelected
-                          ? 'bg-sky-600 text-white shadow-sm'
+                          ? 'bg-slate-800 text-white border border-slate-700'
                           : 'bg-slate-100 text-slate-600'
                       }`}
                     >
-                      {firstChar}
+                      <Building2 className="w-5 h-5" />
                     </div>
 
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-bold text-slate-800 text-xs sm:text-sm truncate">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className={`font-bold text-xs sm:text-sm truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
                           {c.name}
                         </h4>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          ({c.code})
+                        <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {c.code}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                      <div className={`flex items-center gap-3 text-[11px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                         {c.phone && (
                           <span className="flex items-center gap-1 font-mono">
-                            <Phone className="w-3 h-3 text-slate-400" />
+                            <Phone className="w-3 h-3 opacity-70" />
                             {c.phone}
                           </span>
                         )}
                         {c.city && (
                           <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <MapPin className="w-3 h-3 opacity-70" />
                             {c.city}
                           </span>
                         )}
@@ -147,59 +147,78 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                     </div>
                   </div>
 
-                  <div className="shrink-0 text-left">
+                  <div className="shrink-0 text-left flex items-center gap-2">
                     {hasDebt ? (
-                      <div className="flex flex-col items-end gap-0.5 bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-xl text-rose-700">
+                      <div className={`flex flex-col items-end px-2.5 py-1 rounded-lg border ${
+                        isSelected 
+                          ? 'bg-rose-950/50 border-rose-800 text-rose-300' 
+                          : 'bg-rose-50 border-rose-100 text-rose-700'
+                      }`}>
                         <span className="text-[10px] font-bold flex items-center gap-1">
                           <AlertCircle className="w-3 h-3" />
-                          عليه دين
+                          مستحق
                         </span>
-                        <span className="text-[11px] font-mono font-extrabold">
+                        <span className="text-[11px] font-mono font-bold">
                           {formatILS(c.outstanding_balance)}
                         </span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2.5 py-1.5 rounded-xl text-emerald-700 text-[10px] font-bold">
+                      <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${
+                        isSelected 
+                          ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' 
+                          : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                      }`}>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        لا يوجد ديون
+                        منتظم
                       </div>
                     )}
+                    <ChevronLeft className={`w-4 h-4 ${isSelected ? 'text-slate-400' : 'text-slate-300'}`} />
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="p-10 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-              لم يتم العثور على أي عميل ينطبق عليه البحث
+            <div className="p-12 text-center text-xs text-slate-500 bg-white rounded-xl border border-dashed border-slate-200">
+              لا يوجد عميل يطابق معايير البحث الحالية.
             </div>
           )}
         </div>
 
-        {/* 👁️ القسم الأيسر: بطاقة المعاينة */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm sticky top-4">
-          <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-100 text-slate-800 font-bold text-sm">
-            <Users className="w-4 h-4 text-sky-600" />
-            <h3>معاينة العميل المحدد</h3>
+        {/* 🏢 القسم الأيسر: بطاقة التفاصيل والمعاينة الرسمية */}
+        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm sticky top-4">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 text-slate-900 font-bold text-sm">
+            <span className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-slate-700" />
+              بيانات العميل المحدد
+            </span>
+            {selected && (
+              <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                ID: {selected.code}
+              </span>
+            )}
           </div>
 
           {selected ? (
-            <div className="space-y-4 animate-fade-in text-center">
-              <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-sky-600 text-white font-black text-xl flex items-center justify-center shadow-md mb-2">
-                  {selected.name?.trim().charAt(0) || 'ع'}
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6" />
                 </div>
-                <h3 className="font-extrabold text-slate-800 text-base sm:text-lg">
-                  {selected.name}
-                </h3>
-                <p className="text-xs font-mono text-slate-400 mt-0.5">
-                  كود العميل: {selected.code}
-                </p>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {selected.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    {selected.city || 'المدينة غير محددة'}
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-2 text-right pt-2">
-                <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="p-3 rounded-lg border border-slate-100 bg-white flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-sky-600" />
+                    <Phone className="w-4 h-4 text-slate-400" />
                     رقم الهاتف
                   </span>
                   <span className="font-bold text-xs sm:text-sm text-slate-800 font-mono">
@@ -207,64 +226,51 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                   </span>
                 </div>
 
-                <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div className="p-3 rounded-lg border border-slate-100 bg-white flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-sky-600" />
-                    الموقع / المدينة
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    حالة الحساب
                   </span>
-                  <span className="font-bold text-xs sm:text-sm text-slate-800">
-                    {selected.city || 'غير محدد'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-sky-600" />
-                    الطلبات السابقة
-                  </span>
-                  <span className="font-bold text-xs sm:text-sm text-slate-800">
-                    —
+                  <span className="font-bold text-xs text-slate-800">
+                    نشط
                   </span>
                 </div>
 
                 <div
-                  className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                  className={`p-3.5 rounded-lg border flex items-center justify-between ${
                     selected.outstanding_balance > 0
-                      ? 'bg-rose-50/80 border-rose-200 text-rose-800'
-                      : 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                      ? 'bg-rose-50/60 border-rose-200 text-rose-900'
+                      : 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
                   }`}
                 >
                   <span className="text-xs font-bold flex items-center gap-2">
-                    <TrendingDown className="w-4 h-4" />
-                    الرصيد / الديون
+                    <CreditCard className="w-4 h-4" />
+                    الرصيد المستحق
                   </span>
-                  <span className="font-extrabold text-sm sm:text-base font-mono">
+                  <span className="font-bold text-sm sm:text-base font-mono">
                     {selected.outstanding_balance > 0
                       ? formatILS(selected.outstanding_balance)
-                      : 'لا يوجد ديون'}
+                      : 'لا توجد مستحقات'}
                   </span>
                 </div>
               </div>
 
-              {/* 🛒 زر إنشاء طلب جديد معدل بالدالة الجديدة */}
               <button
                 type="button"
                 onClick={() => handleCreateOrder(selected.id)}
-                className="w-full mt-2 py-3 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-[0.99]"
+                className="w-full mt-3 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-lg transition shadow-sm flex items-center justify-center gap-2 active:scale-[0.99]"
               >
-                <ShoppingCart className="w-4 h-4" />
-                <span>إنشاء طلب جديد</span>
+                <PlusCircle className="w-4 h-4" />
+                <span>متابعة إنشاء طلب للعميل</span>
               </button>
             </div>
           ) : (
-            <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
-                <Users className="w-8 h-8" />
+            <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
+              <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                <Building2 className="w-6 h-6" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-slate-600">لم يتم اختيار عميل</p>
-                <p className="text-xs text-slate-400">اختر عميلاً من القائمة لعرض بياناته هنا</p>
-              </div>
+              <p className="text-sm font-bold text-slate-700">لم يتم تحديد عميل</p>
+              <p className="text-xs text-slate-400">حدد مركزاً أو عميلاً من القائمة الجانبية لعرض بياناته والبدء بالطلب.</p>
             </div>
           )}
         </div>

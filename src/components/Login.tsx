@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Eye } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -26,10 +26,14 @@ export function Login({ onLoginSuccess }: LoginProps) {
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
       <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6">
         
-        {/* الشعار برمجياً */}
+        {/* الشعار الرسمي للشركة */}
         <div className="flex flex-col items-center justify-center gap-2">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg border border-slate-700">
-            <Eye className="w-8 h-8 text-sky-400" />
+          <div className="flex items-center justify-center mb-1">
+            <img 
+              src="/logo.png" 
+              alt="شعار شركة ومستودع الرؤيا النقية" 
+              className="h-20 w-auto object-contain drop-shadow-sm"
+            />
           </div>
           <h2 className="text-xl font-black text-slate-800 mt-2">
             شركة ومستودع الرؤيا النقية

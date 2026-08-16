@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   supabase,
   type Client,
@@ -24,13 +24,58 @@ import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
+// ⏱️ مده مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة / 30000 = 30 ثانية)
+const INACTIVITY_TIMEOUT = 60 * 1000; // 1 دقيقة
+
 export default function App() {
-  // 🔒 إدارة حالة تسجيل الدخول والأمان (تم التعديل لقراءة sessionStorage)
+  // 🔒 إدارة حالة تسجيل الدخول عبر sessionStorage لمنع تسجيل الخروج عند الـ Refresh
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('pvo_authenticated') === 'true';
   });
 
-  // التبويب الافتراضي هو الواجهة الرئيسية (home)
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🚪 دالة تسجيل الخروج
+  const handleLogout = useCallback(() => {
+    sessionStorage.removeItem('pvo_authenticated');
+    setIsAuthenticated(false);
+  }, []);
+
+  // ⏳ دالة إعادة إعادة تعيين مؤقت الخمول عند حدوث أي حركة من المستخدم
+  const resetInactivityTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    // ضبط الموعد الجديد لتسجيل الخروج إذا توقفت الحركة
+    timerRef.current = setTimeout(() => {
+      handleLogout();
+    }, INACTIVITY_TIMEOUT);
+  }, [handleLogout]);
+
+  // 👂 مراقبة تفاعل ونشاط المستخدم في الصفحة
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // الأحداث التي تعبر عن نشاط المستخدم
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    // تشغيل المؤقت لأول مرة عند فتح/تحديث الصفحة
+    resetInactivityTimer();
+
+    // إضافة المستمعين للأحداث
+    events.forEach((event) => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    // التنظيف عند إغلاق أو تفكيك المكون
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, [isAuthenticated, resetInactivityTimer]);
+
+  // التبويب الافتراضي هو الواجهة الرئيسية
   const [activeTab, setActiveTab] = useState<'home' | 'new-order' | 'inventory' | 'orders-history' | 'clients'>('home');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
@@ -140,7 +185,6 @@ export default function App() {
     [clients, selectedClientId]
   );
 
-  // 🔍 الفلترة التلقائية للعملاء حسب البحث بالاسم أو الهاتفي
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return clients;
     const query = clientSearchQuery.toLowerCase().trim();
@@ -340,7 +384,6 @@ export default function App() {
 
   const creditExceeded = false;
 
-  // 💾 معالجة حفظ الطلب وتنشيط ربط المخزون بالكامل
   const persistOrder = useCallback(
     async (status: 'draft' | 'confirmed'): Promise<{ orderId: string; invoiceNumber?: string } | null> => {
       if (!selectedClient) {
@@ -468,7 +511,6 @@ export default function App() {
     }
   }, [returnItemType, selectedReturnProductId, selectedReturnLensId, returnQty, products, lensProducts]);
 
-  // 🔄 معالجة إرجاع المنتجات والعدسات وتحديث المخزون
   async function handleReturnProduct() {
     if (!selectedReturnClient || returnQty <= 0 || calculatedReturnTotal <= 0) {
       alert('يرجى تحديد المنتج والكمية بشكل صحيح');
@@ -659,15 +701,23 @@ export default function App() {
     win.document.close();
   }
 
+  // إذا لم يكن مسجلاً للدخول، يتم عرض شاشة تسجيل الدخول
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return (
+      <Login
+        onLoginSuccess={() => {
+          sessionStorage.setItem('pvo_authenticated', 'true');
+          setIsAuthenticated(true);
+        }}
+      />
+    );
   }
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-bold">جاري تحميل البيانات...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      <Header />
+      <Header onLogout={handleLogout} />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
 
         {/* شريط التبويبات الرئيسي */}
@@ -1126,7 +1176,6 @@ export default function App() {
             )}
 
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-              {/* شريط البحث المباشر في العملاء */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
                 <div>
                   <h3 className="font-bold text-slate-800 text-lg">🔍 قائمة العملاء السريعة</h3>
@@ -1152,7 +1201,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* شبكة عرض العملاء المفلترة */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredClients.length > 0 ? (
                   filteredClients.map((c) => (

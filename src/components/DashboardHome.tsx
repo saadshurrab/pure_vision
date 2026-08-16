@@ -73,76 +73,68 @@ export function DashboardHome({
 
   return (
     <div className="space-y-6">
-      {/* 1. كروت الإحصائيات السريعة */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* إجمالي المبيعات */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة (فوق) */}
+      <div className="space-y-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">إجمالي المبيعات المؤكدة</p>
-            <h3 className="text-2xl font-black text-emerald-600">{formatILS(totalSales)}</h3>
+            <h1 className="text-2xl font-black text-slate-800">لوحة تحكم Pure Vision Optics</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              متابعة حركة المبيعات، المخزون، والديون المستحقة بشكل مباشر.
+            </p>
           </div>
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold">
-            💰
-          </div>
+          <span className="bg-sky-50 text-sky-700 font-bold text-xs px-3 py-1.5 rounded-lg border border-sky-200">
+            النظام يعمل بكفاءة 🟢
+          </span>
         </div>
 
-        {/* الديون المستحقة */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">إجمالي ديون العملاء</p>
-            <h3 className="text-2xl font-black text-rose-600">{formatILS(totalOutstandingBalance)}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* إجمالي المبيعات */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">إجمالي المبيعات المؤكدة</p>
+              <h3 className="text-2xl font-black text-emerald-600">{formatILS(totalSales)}</h3>
+            </div>
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold">
+              💰
+            </div>
           </div>
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl font-bold">
-            💳
-          </div>
-        </div>
 
-        {/* عدد العملاء */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">العملاء المسجلين</p>
-            <h3 className="text-2xl font-black text-sky-700">{clientsCount} عميل</h3>
+          {/* الديون المستحقة */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">إجمالي ديون العملاء</p>
+              <h3 className="text-2xl font-black text-rose-600">{formatILS(totalOutstandingBalance)}</h3>
+            </div>
+            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl font-bold">
+              💳
+            </div>
           </div>
-          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xl font-bold">
-            👥
-          </div>
-        </div>
 
-        {/* تنبيهات المخزون */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">تنبيهات نواقص المخزون</p>
-            <h3 className="text-2xl font-black text-amber-600">{lowStockCount} أصناف</h3>
+          {/* عدد العملاء */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">العملاء المسجلين</p>
+              <h3 className="text-2xl font-black text-sky-700">{clientsCount} عميل</h3>
+            </div>
+            <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xl font-bold">
+              👥
+            </div>
           </div>
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold">
-            ⚠️
+
+          {/* تنبيهات المخزون */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">تنبيهات نواقص المخزون</p>
+              <h3 className="text-2xl font-black text-amber-600">{lowStockCount} أصناف</h3>
+            </div>
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold">
+              ⚠️
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. إجراءات سريعة */}
-      <div className="bg-gradient-to-r from-sky-800 to-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold">مرحباً بك في لوحة تحكم Pure Vision Optics</h2>
-          <p className="text-xs text-sky-200 mt-1">يمكنك البدء فوراً بإنشاء طلب جديد أو متابعة حالة المخزون والحسابات.</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => onNavigate('new-order')}
-            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm"
-          >
-            ➕ طلب جديد
-          </button>
-          <button
-            onClick={() => onNavigate('inventory')}
-            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition"
-          >
-            📦 جرد المخزون
-          </button>
-        </div>
-      </div>
-
-      {/* 3. أحدث الطلبات والعمليات */}
+      {/* 2. البيانات والعمليات (أحدث الطلبات) (بالوسط) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <h3 className="font-bold text-slate-800 text-base">📋 أحدث الطلبات والعمليات المسجلة</h3>
@@ -207,6 +199,28 @@ export function DashboardHome({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* 3. الورقة والإجراءات السريعة (تحت في الأسفل) */}
+      <div className="bg-gradient-to-r from-sky-800 to-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold">ورقة الإجراءات السريعة والطلبات</h2>
+          <p className="text-xs text-sky-200 mt-1">يمكنك البدء فوراً بإنشاء طلب جديد أو الانتقال للتحقق من جرد المخزون.</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => onNavigate('new-order')}
+            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm"
+          >
+            ➕ طلب جديد
+          </button>
+          <button
+            onClick={() => onNavigate('inventory')}
+            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition"
+          >
+            📦 جرد المخزون
+          </button>
         </div>
       </div>
     </div>

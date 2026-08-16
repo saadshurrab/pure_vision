@@ -25,7 +25,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
       <button
         type="button"
         onClick={() => setIsOpenMobile(!isOpenMobile)}
-        className="md:hidden fixed top-4 right-4 z-50 bg-[#1a1a2e] text-white p-2.5 rounded-md border border-[#c9a227]/30 shadow-lg focus:outline-none transition hover:bg-[#252545]"
+        className="md:hidden fixed top-4 right-4 z-50 bg-[#0f172a] text-white p-2.5 rounded-md border border-sky-500/30 shadow-lg focus:outline-none transition hover:bg-[#1e293b]"
         aria-label="فتح القائمة"
       >
         <span className="text-xl">☰</span>
@@ -42,8 +42,8 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
       {/* القائمة الجانبية */}
       <aside
         className={`
-          fixed top-0 right-0 h-screen bg-[#1a1a2e] text-slate-300 z-40
-          w-[240px] transition-transform duration-300 ease-in-out border-l border-white/5
+          fixed top-0 right-0 h-screen bg-[#0f172a] text-slate-400 z-40
+          w-[240px] transition-transform duration-300 ease-in-out border-l border-sky-500/10
           flex flex-col justify-between select-none shadow-2xl
           ${isOpenMobile ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
         `}
@@ -51,13 +51,13 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
         {/* القسم العلوي */}
         <div>
           {/* الشعار */}
-          <div className="h-[72px] flex items-center px-6 border-b border-white/10 gap-3">
-            <div className="w-10 h-10 rounded-lg bg-white/5 border border-[#c9a227]/40 flex items-center justify-center text-xl">
+          <div className="h-[72px] flex items-center px-6 border-b border-sky-500/10 gap-3">
+            <div className="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-400/30 flex items-center justify-center text-xl">
               👁️
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-bold text-white text-base tracking-wide">
-                PV <span className="text-[#c9a227] font-normal">Optics</span>
+                PV <span className="text-sky-400 font-normal">Optics</span>
               </span>
               <span className="text-[10px] text-slate-500 tracking-wider">MANAGEMENT SYSTEM</span>
             </div>
@@ -79,8 +79,8 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
                     w-full flex items-center gap-3.5 px-4 py-3 rounded-md text-sm font-semibold transition-all duration-200 relative group
                     ${
                       isActive
-                        ? 'bg-white text-[#1a1a2e] shadow-sm border-r-2 border-[#c9a227]'
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                        ? 'bg-sky-600 text-white shadow-sm border-r-2 border-sky-300'
+                        : 'text-slate-400 hover:bg-sky-500/10 hover:text-sky-300'
                     }
                   `}
                 >
@@ -89,7 +89,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
                   </span>
                   <span className="tracking-wide">{item.label}</span>
                   {isActive && (
-                    <span className="absolute left-3 w-1.5 h-1.5 rounded-full bg-[#c9a227]" />
+                    <span className="absolute left-3 w-1.5 h-1.5 rounded-full bg-sky-300" />
                   )}
                 </button>
               );
@@ -99,14 +99,14 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
 
         {/* القسم السفلي */}
         <div className="px-3 pb-4">
-          <div className="border-t border-white/10 pt-3">
+          <div className="border-t border-sky-500/10 pt-3">
             <button
               type="button"
               onClick={(e) => {
                 setIsOpenMobile(false);
                 onLogout(e);
               }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-md text-sm font-semibold text-rose-400/80 hover:bg-rose-500/10 hover:text-rose-400 transition-all duration-200"
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-md text-sm font-semibold text-slate-400 hover:bg-sky-500/10 hover:text-sky-300 transition-all duration-200"
             >
               <span className="text-xl">🔒</span>
               <span>تسجيل الخروج</span>

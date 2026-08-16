@@ -23,8 +23,9 @@ import { ClientsList } from '@/components/ClientsList';
 import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
+import { ProductsInventory } from '@/components/ProductsInventory';
 
-// ⏱️ مده مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة / 30000 = 30 ثانية)
+// ⏱️ مدة مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة / 30000 = 30 ثانية)
 const INACTIVITY_TIMEOUT = 60 * 1000; // 1 دقيقة
 
 export default function App() {
@@ -41,7 +42,7 @@ export default function App() {
     setIsAuthenticated(false);
   }, []);
 
-  // ⏳ دالة إعادة إعادة تعيين مؤقت الخمول عند حدوث أي حركة من المستخدم
+  // ⏳ دالة إعادة تعيين مؤقت الخمول عند حدوث أي حركة من المستخدم
   const resetInactivityTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     
@@ -55,18 +56,14 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // الأحداث التي تعبر عن نشاط المستخدم
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
 
-    // تشغيل المؤقت لأول مرة عند فتح/تحديث الصفحة
     resetInactivityTimer();
 
-    // إضافة المستمعين للأحداث
     events.forEach((event) => {
       window.addEventListener(event, resetInactivityTimer);
     });
 
-    // التنظيف عند إغلاق أو تفكيك المكون
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       events.forEach((event) => {
@@ -169,7 +166,7 @@ export default function App() {
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-    } finally {
+    } fontally {
       setLoading(false);
     }
   }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);
@@ -989,74 +986,9 @@ export default function App() {
               </div>
             )}
 
-            {/* مخزون المنتجات والملحقات العامة */}
+            {/* مخزون المنتجات والملحقات العامة مع مكون ProductsInventory */}
             {inventoryType === 'products' && (
-              <div className="overflow-x-auto border rounded-xl">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 border-b text-slate-700">
-                      <th className="p-3 text-sm font-bold">الرمز (SKU)</th>
-                      <th className="p-3 text-sm font-bold">اسم المنتج / الملحق</th>
-                      <th className="p-3 text-sm font-bold">الفئة</th>
-                      <th className="p-3 text-sm font-bold">سعر القطعة</th>
-                      <th className="p-3 text-sm font-bold">المخزون الكلي</th>
-                      <th className="p-3 text-sm font-bold">المباع / المستهلك</th>
-                      <th className="p-3 text-sm font-bold">المتبقي بالمخزن</th>
-                      <th className="p-3 text-sm font-bold text-center">حالة المخزون</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.length > 0 ? (
-                      products.map((p) => {
-                        const totalStock = p.stock_qty || 0;
-                        const consumed = p.consumed_stock || 0;
-                        const availableStock = Math.max(0, totalStock - consumed);
-
-                        const categoryLabels: Record<string, string> = {
-                          solution: 'محلول / قطرة',
-                          frame: 'إطار نظارة',
-                          accessory: 'ملحقات / إكسسوار',
-                        };
-
-                        return (
-                          <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
-                            <td className="p-3 text-sm font-mono text-slate-500">{p.sku || '-'}</td>
-                            <td className="p-3 text-sm font-bold text-slate-800">{p.name}</td>
-                            <td className="p-3 text-sm font-medium text-slate-600">
-                              <span className="bg-slate-100 px-2.5 py-1 rounded-md text-xs border border-slate-200">
-                                {categoryLabels[p.category] || p.category}
-                              </span>
-                            </td>
-                            <td className="p-3 text-sm font-bold text-emerald-700">{formatILS(p.unit_price)}</td>
-                            <td className="p-3 text-sm font-semibold text-slate-600">{totalStock}</td>
-                            <td className="p-3 text-sm font-semibold text-amber-700">{consumed}</td>
-                            <td className="p-3 text-sm font-bold text-sky-800">{availableStock} قطعة</td>
-                            <td className="p-3 text-sm text-center">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
-                                  availableStock === 0
-                                    ? 'bg-rose-100 text-rose-700'
-                                    : availableStock < 5
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-emerald-100 text-emerald-700'
-                                }`}
-                              >
-                                {availableStock === 0 ? 'منتهي' : availableStock < 5 ? 'منخفض' : 'متوفر'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="p-6 text-center text-slate-400 text-sm">
-                          لا توجد منتجات مسجلة في النظام حالياً.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <ProductsInventory products={products} onRefresh={loadData} />
             )}
           </div>
         )}

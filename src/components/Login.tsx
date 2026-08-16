@@ -9,13 +9,15 @@ export function Login({ onLoginSuccess }: LoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // 🔑 حدد كلمة المرور المطلوبة هنا (يمكنك تغييرها لاحقاً)
+  // 🔑 كلمة المرور المطلوبة
   const SECRET_PASSWORD = '2864341'; 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === SECRET_PASSWORD) {
-      localStorage.setItem('pvo_authenticated', 'true');
+      // 💡 التعديل هنا: استخدام sessionStorage بدلاً من localStorage
+      // لإنهاء الجلسة تلقائياً فور إغلاق التبويب أو المتصفح
+      sessionStorage.setItem('pvo_authenticated', 'true');
       onLoginSuccess();
     } else {
       setError('كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.');

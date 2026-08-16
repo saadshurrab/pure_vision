@@ -25,9 +25,9 @@ import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
 export default function App() {
-  // 🔒 إدارة حالة تسجيل الدخول والأمان
+  // 🔒 إدارة حالة تسجيل الدخول والأمان (تم التعديل لقراءة sessionStorage)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('pvo_authenticated') === 'true';
+    return sessionStorage.getItem('pvo_authenticated') === 'true';
   });
 
   // التبويب الافتراضي هو الواجهة الرئيسية (home)

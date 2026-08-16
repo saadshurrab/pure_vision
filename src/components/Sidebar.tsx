@@ -38,7 +38,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
       {/* زر القائمة للشاشات الصغيرة */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="md:hidden fixed top-3 right-3 z-50 bg-slate-900 text-slate-200 p-2 rounded-lg shadow-md border border-slate-700/60 hover:bg-slate-800 transition-colors duration-200"
+        className="md:hidden fixed top-3 right-3 z-50 bg-slate-900 text-slate-200 p-2 rounded-lg shadow-md border border-slate-700/60 hover:bg-slate-800 transition-colors"
         aria-label="Toggle Menu"
       >
         {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -48,7 +48,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}
-          className="md:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 transition-opacity"
+          className="md:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40"
         />
       )}
 
@@ -76,7 +76,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
 
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`hidden md:flex p-1.5 text-slate-400 hover:text-slate-100 hover:bg-white/[0.06] rounded-md transition-colors duration-200 ${
+            className={`hidden md:flex p-1.5 text-slate-400 hover:text-slate-100 hover:bg-white/[0.04] rounded-md transition-colors ${
               isCollapsed ? 'mx-auto' : ''
             }`}
             title={isCollapsed ? "توسيع القائمة" : "طَي القائمة"}
@@ -86,7 +86,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
         </div>
 
         {/* عناصر القائمة */}
-        <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -97,22 +97,23 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
                   setActiveTab(item.id);
                   setIsMobileOpen(false);
                 }}
-                className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium border border-transparent transition-[background-color,color,border-color] duration-200 ${
+                className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-200 ${
                   isActive
-                    ? 'bg-sky-500/[0.08] text-sky-400 font-semibold border-sky-500/20'
-                    : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
+                    ? 'bg-sky-500/[0.06] text-sky-400 font-semibold'
+                    : 'text-slate-400 hover:bg-white/[0.03] hover:text-slate-200'
                 } ${isCollapsed ? 'justify-center px-0' : ''}`}
                 title={isCollapsed ? item.label : undefined}
               >
                 {/* مؤشر العنصر النشط */}
                 {isActive && (
-                  <span className="absolute right-0 top-2 bottom-2 w-[3px] bg-sky-400 rounded-l-full" />
+                  <span className="absolute right-0 top-2.5 bottom-2.5 w-[2px] bg-sky-400 rounded-l-full" />
                 )}
 
                 <Icon 
                   size={18} 
+                  strokeWidth={isActive ? 2.5 : 2}
                   className={`flex-shrink-0 transition-colors duration-200 ${
-                    isActive ? 'text-sky-400' : 'text-slate-400 group-hover:text-slate-200'
+                    isActive ? 'text-sky-400' : 'text-slate-500 group-hover:text-slate-300'
                   }`} 
                 />
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
@@ -125,14 +126,14 @@ export function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
         <div className="p-2 border-t border-slate-800/80">
           <button
             onClick={onLogout}
-            className={`group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 border border-transparent transition-[background-color,color] duration-200 hover:bg-white/[0.04] hover:text-rose-400 ${
+            className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-500 border border-transparent transition-colors duration-200 hover:bg-white/[0.03] hover:text-rose-400 ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
             title={isCollapsed ? "تسجيل الخروج" : undefined}
           >
             <LogOut 
               size={18} 
-              className="flex-shrink-0 text-slate-400 group-hover:text-rose-400 transition-colors duration-200" 
+              className="flex-shrink-0 text-slate-500 group-hover:text-rose-400 transition-colors duration-200" 
             />
             {!isCollapsed && <span>تسجيل الخروج</span>}
           </button>

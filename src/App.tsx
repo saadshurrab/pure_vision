@@ -24,7 +24,7 @@ import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
-// ⏱️ مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة)
+// ⏱️ مهلة الخمول بالملي ثانية (60000 = دقيقة واحدة)
 const INACTIVITY_TIMEOUT = 60 * 1000;
 
 export default function App() {
@@ -35,7 +35,7 @@ export default function App() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🚪 دالة تسجيل الخروج الفعالة والأمنة بدون إعادة تحميل إجباري للصفحة
+  // 🚪 دالة تسجيل الخروج الفعالة والأمنة
   const handleLogout = useCallback(async (e?: React.MouseEvent) => {
     if (e && e.preventDefault) {
       e.preventDefault();
@@ -173,7 +173,7 @@ export default function App() {
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
-    } finally {
+    } fontally {
       setLoading(false);
     }
   }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);
@@ -419,12 +419,14 @@ export default function App() {
 
         if (oe) throw oe;
 
+        // تجهيز كافة عناصر السلة سواء كانت عدسات أو منتجات وملحقات أخرى
         const items = cart.map((i) =>
           'lensProductId' in i
             ? {
                 order_id: order.id,
                 item_type: 'lens',
                 lens_product_id: i.lensProductId,
+                product_id: null,
                 sph: i.sph,
                 cyl: i.cyl,
                 axis: i.axis,
@@ -436,6 +438,7 @@ export default function App() {
                 order_id: order.id,
                 item_type: 'product',
                 product_id: i.productId,
+                lens_product_id: null,
                 sph: null,
                 cyl: null,
                 axis: null,
@@ -705,7 +708,7 @@ export default function App() {
     win.document.close();
   }
 
-  // تسجيل الدخول
+  // شاشة تسجيل الدخول
   if (!isAuthenticated) {
     return (
       <Login
@@ -721,14 +724,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      {/* القائمة الجانبية المحدثة بأسلوب التصميم الثابت والأزرار الجديدة */}
+      {/* القائمة الجانبية */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
       />
 
-      {/* المحتوى الرئيسي للمنصة مع مراعاة الهامش الأيمن للمحاذاة مع القائمة الجانبية */}
+      {/* المحتوى الرئيسي */}
       <main className="md:pr-[220px] transition-all p-4 md:p-6 min-h-screen">
 
         {/* Tab 0: الشاشة الرئيسية */}

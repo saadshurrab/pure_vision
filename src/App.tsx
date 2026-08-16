@@ -13,7 +13,7 @@ import {
   formatSPH,
   SPH_ALL,
 } from '@/lib/supabase';
-import { Header } from '@/components/Header';
+import { Sidebar, type TabType } from '@/components/Sidebar';
 import { ClientSelector } from '@/components/ClientSelector';
 import { SphMatrix, type CustomPrescription } from '@/components/SphMatrix';
 import { AdditionalItems } from '@/components/AdditionalItems';
@@ -24,49 +24,53 @@ import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
-// ⏱️ مده مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة / 30000 = 30 ثانية)
-const INACTIVITY_TIMEOUT = 60 * 1000; // 1 دقيقة
+// ⏱️ مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة)
+const INACTIVITY_TIMEOUT = 60 * 1000;
 
 export default function App() {
-  // 🔒 إدارة حالة تسجيل الدخول عبر sessionStorage لمنع تسجيل الخروج عند الـ Refresh
+  // 🔒 إدارة حالة تسجيل الدخول عبر sessionStorage
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('pvo_authenticated') === 'true';
   });
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🚪 دالة تسجيل الخروج
-  const handleLogout = useCallback(() => {
-    sessionStorage.removeItem('pvo_authenticated');
-    setIsAuthenticated(false);
+  // 🚪 دالة تسجيل الخروج الفعالة والأمنة بدون إعادة تحميل إجباري للصفحة
+  const handleLogout = useCallback(async (e?: React.MouseEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    try {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      sessionStorage.removeItem('pvo_authenticated');
+      localStorage.removeItem('pvo_authenticated');
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsAuthenticated(false);
+    }
   }, []);
 
-  // ⏳ دالة إعادة إعادة تعيين مؤقت الخمول عند حدوث أي حركة من المستخدم
+  // ⏳ إعادة تعيين مؤقت الخمول عند حدوث تفاعل
   const resetInactivityTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    
-    // ضبط الموعد الجديد لتسجيل الخروج إذا توقفت الحركة
     timerRef.current = setTimeout(() => {
       handleLogout();
     }, INACTIVITY_TIMEOUT);
   }, [handleLogout]);
 
-  // 👂 مراقبة تفاعل ونشاط المستخدم في الصفحة
+  // 👂 مراقبة نشاط المستخدم
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // الأحداث التي تعبر عن نشاط المستخدم
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-
-    // تشغيل المؤقت لأول مرة عند فتح/تحديث الصفحة
     resetInactivityTimer();
 
-    // إضافة المستمعين للأحداث
     events.forEach((event) => {
       window.addEventListener(event, resetInactivityTimer);
     });
 
-    // التنظيف عند إغلاق أو تفكيك المكون
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       events.forEach((event) => {
@@ -75,8 +79,8 @@ export default function App() {
     };
   }, [isAuthenticated, resetInactivityTimer]);
 
-  // التبويب الافتراضي هو الواجهة الرئيسية
-  const [activeTab, setActiveTab] = useState<'home' | 'new-order' | 'inventory' | 'orders-history' | 'clients'>('home');
+  // التبويب النشط
+  const [activeTab, setActiveTab] = useState<TabType>('home');
   const [clients, setClients] = useState<Client[]>([]);
   const [lensProducts, setLensProducts] = useState<LensProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -122,7 +126,7 @@ export default function App() {
   const [inventoryType, setInventoryType] = useState<'lenses' | 'products'>('lenses');
   const [inventoryCategory, setInventoryCategory] = useState<string>('');
 
-  // 🔄 جلب البيانات الشاملة من Supabase
+  // 🔄 جلب البيانات من Supabase
   const loadData = useCallback(async () => {
     try {
       const [c, l, p, ls, ord] = await Promise.all([
@@ -701,7 +705,7 @@ export default function App() {
     win.document.close();
   }
 
-  // إذا لم يكن مسجلاً للدخول، يتم عرض شاشة تسجيل الدخول
+  // تسجيل الدخول
   if (!isAuthenticated) {
     return (
       <Login
@@ -717,62 +721,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      <Header onLogout={handleLogout} />
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
+      {/* القائمة الجانبية المحدثة بأسلوب التصميم الثابت والأزرار الجديدة */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={handleLogout}
+      />
 
-        {/* شريط التبويبات الرئيسي */}
-        <div className="flex border border-slate-200 mb-6 bg-white rounded-xl p-1.5 shadow-sm overflow-x-auto gap-1">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-              activeTab === 'home'
-                ? 'bg-white text-sky-700 border-2 border-sky-600 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 border border-transparent'
-            }`}
-          >
-            🏠 الرئيسية
-          </button>
-          <button
-            onClick={() => setActiveTab('new-order')}
-            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-              activeTab === 'new-order'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 border border-transparent'
-            }`}
-          >
-            🛒 إنشاء طلب جديد
-          </button>
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-              activeTab === 'inventory'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 border border-transparent'
-            }`}
-          >
-            📦 عرض المخزون
-          </button>
-          <button
-            onClick={() => setActiveTab('orders-history')}
-            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-              activeTab === 'orders-history'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 border border-transparent'
-            }`}
-          >
-            📋 سجل الطلبات
-          </button>
-          <button
-            onClick={() => setActiveTab('clients')}
-            className={`flex-1 py-2.5 px-4 text-center font-bold text-sm rounded-lg whitespace-nowrap transition ${
-              activeTab === 'clients'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 border border-transparent'
-            }`}
-          >
-            👥 دليل العملاء والمرتجعات
-          </button>
-        </div>
+      {/* المحتوى الرئيسي للمنصة مع مراعاة الهامش الأيمن للمحاذاة مع القائمة الجانبية */}
+      <main className="md:pr-[220px] transition-all p-4 md:p-6 min-h-screen">
 
         {/* Tab 0: الشاشة الرئيسية */}
         {activeTab === 'home' && (
@@ -989,7 +946,7 @@ export default function App() {
               </div>
             )}
 
-            {/* مخزون المنتجات والملحقات العامة */}
+            {/* مخزون المنتجات والملحقات */}
             {inventoryType === 'products' && (
               <div className="overflow-x-auto border rounded-xl">
                 <table className="w-full text-right border-collapse">
@@ -1064,7 +1021,7 @@ export default function App() {
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
 
-        {/* Tab 4: دليل العملاء + البحث + المرتجعات */}
+        {/* Tab 4: دليل العملاء والمرتجعات */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (

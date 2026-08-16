@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Eye, Package, Search, Box, PlusCircle } from 'lucide-react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Eye, Package, Search, Box, PlusCircle, X } from 'lucide-react';
 import { supabase, formatILS, type Product, type LensProduct } from '@/lib/supabase';
 
 interface Props {
@@ -35,22 +35,28 @@ export function ProductsInventory({
 
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchProducts();
+  // جلب المنتجات العامة من supabase
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data) {
+        setProducts(data as Product[]);
+      }
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  async function fetchProducts() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('name', { ascending: true });
-
-    if (!error && data) {
-      setProducts(data as Product[]);
-    }
-    setLoading(false);
-  }
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   // تغذية كمية منتج عام (تعديل stock_qty)
   async function handleAddStock(e: React.FormEvent) {
@@ -88,6 +94,8 @@ export function ProductsInventory({
     setSaving(true);
     try {
       const sphValue = parseFloat(selectedLensSph.sph);
+      if (isNaN(sphValue)) throw new Error('قياس الـ SPH غير صالح');
+
       const newQty = selectedLensSph.currentQty + addLensStockAmount;
 
       const { error } = await supabase
@@ -110,11 +118,14 @@ export function ProductsInventory({
 
   // تصفية المنتجات العامة حسب البحث
   const filteredProducts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return products;
+
     return products.filter(
       (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+        p.name?.toLowerCase().includes(term) ||
+        p.sku?.toLowerCase().includes(term) ||
+        p.category?.toLowerCase().includes(term)
     );
   }, [products, searchTerm]);
 
@@ -135,8 +146,14 @@ export function ProductsInventory({
     return lensProducts.find((l) => l.id === selectedLensId);
   }, [lensProducts, selectedLensId]);
 
+  // استخراج الماركات الفريدة
   const uniqueLensProducts = useMemo(() => {
-    return Array.from(new Map(lensProducts.map((item) => [item.brand, item])).values());
+    const seenBrands = new Set();
+    return lensProducts.filter((item) => {
+      if (seenBrands.has(item.brand)) return false;
+      seenBrands.add(item.brand);
+      return true;
+    });
   }, [lensProducts]);
 
   return (
@@ -145,7 +162,7 @@ export function ProductsInventory({
       <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-start gap-2">
         <button
           onClick={() => setActiveTab('general')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
             activeTab === 'general'
               ? 'bg-sky-600 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -157,7 +174,7 @@ export function ProductsInventory({
 
         <button
           onClick={() => setActiveTab('lenses')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
             activeTab === 'lenses'
               ? 'bg-sky-600 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -173,20 +190,20 @@ export function ProductsInventory({
         <div className="space-y-6">
           {/* بطاقات الإحصائيات السريعة */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex justify-between items-center">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex justify-between items-center shadow-xs">
               <div>
                 <p className="text-sm font-medium text-amber-700">إجمالي قطع المنتجات المستهلكة (المباعة)</p>
                 <h3 className="text-3xl font-bold text-amber-800 mt-1">{totalItemsConsumed} قطعة</h3>
               </div>
-              <span className="text-4xl">📦</span>
+              <span className="text-4xl" role="img" aria-label="box">📦</span>
             </div>
 
-            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 flex justify-between items-center">
+            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 flex justify-between items-center shadow-xs">
               <div>
                 <p className="text-sm font-medium text-sky-700">إجمالي القطع المتبقية بالمخزن</p>
                 <h3 className="text-3xl font-bold text-sky-800 mt-1">{totalItemsRemaining} قطعة</h3>
               </div>
-              <span className="text-4xl">🏬</span>
+              <span className="text-4xl" role="img" aria-label="store">🏬</span>
             </div>
           </div>
 
@@ -199,7 +216,7 @@ export function ProductsInventory({
               </div>
 
               <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="بحث باسم المنتج أو الكود (SKU)..."
@@ -211,7 +228,9 @@ export function ProductsInventory({
             </div>
 
             {loading ? (
-              <div className="p-8 text-center text-slate-500 font-bold">جاري تحميل قائمة المنتجات...</div>
+              <div className="p-8 text-center text-slate-500 font-bold animate-pulse">جاري تحميل قائمة المنتجات...</div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 font-medium">لا توجد منتجات مطابقة لعملية البحث.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-right border-collapse">
@@ -235,7 +254,7 @@ export function ProductsInventory({
                       const isLowStock = remaining <= 5;
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50">
+                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                           <td className="p-3 font-mono text-slate-500 text-xs">{p.sku || '—'}</td>
                           <td className="p-3 font-semibold text-slate-800">{p.name}</td>
                           <td className="p-3 text-slate-500 text-xs">{p.category || 'عام'}</td>
@@ -257,8 +276,11 @@ export function ProductsInventory({
                           </td>
                           <td className="p-3 text-center">
                             <button
-                              onClick={() => setSelectedProduct(p)}
-                              className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1"
+                              onClick={() => {
+                                setSelectedProduct(p);
+                                setAddStockAmount(0);
+                              }}
+                              className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1 cursor-pointer"
                             >
                               <PlusCircle className="w-3.5 h-3.5" />
                               إضافة كمية
@@ -336,7 +358,7 @@ export function ProductsInventory({
                     const isLow = qty <= 3;
 
                     return (
-                      <tr key={key} className="hover:bg-slate-50/80 transition">
+                      <tr key={key} className="hover:bg-slate-50/80 transition-colors">
                         <td className="p-3 text-center font-bold text-slate-700" dir="ltr">{sph}</td>
                         <td className="p-3 text-center font-bold text-slate-900">{qty} قطعة</td>
                         <td className="p-3 text-center">
@@ -356,8 +378,11 @@ export function ProductsInventory({
                         </td>
                         <td className="p-3 text-center">
                           <button
-                            onClick={() => setSelectedLensSph({ sph, currentQty: qty })}
-                            className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1"
+                            onClick={() => {
+                              setSelectedLensSph({ sph, currentQty: qty });
+                              setAddLensStockAmount(0);
+                            }}
+                            className="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 font-medium px-3 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1 cursor-pointer"
                           >
                             <PlusCircle className="w-3.5 h-3.5" />
                             تغذية
@@ -381,8 +406,21 @@ export function ProductsInventory({
 
       {/* 1. نافذة إدخال كميات جديدة لمنتج عام */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <h3 className="text-lg font-bold text-slate-800 mb-2">تغذية مخزون المنتجات</h3>
             <p className="text-sm text-slate-600 mb-4">
               المنتج: <strong className="text-slate-800">{selectedProduct.name}</strong>
@@ -396,7 +434,7 @@ export function ProductsInventory({
                   min="1"
                   required
                   value={addStockAmount || ''}
-                  onChange={(e) => setAddStockAmount(Number(e.target.value))}
+                  onChange={(e) => setAddStockAmount(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="مثال: 50"
                   className="w-full border border-slate-300 rounded-xl p-2.5 text-base font-semibold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
@@ -421,14 +459,14 @@ export function ProductsInventory({
                 <button
                   type="button"
                   onClick={() => setSelectedProduct(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-bold shadow-sm"
+                  disabled={saving || addStockAmount <= 0}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold shadow-sm cursor-pointer transition"
                 >
                   {saving ? 'جاري الحفظ...' : 'حفظ التغيرات ✅'}
                 </button>
@@ -440,8 +478,21 @@ export function ProductsInventory({
 
       {/* 2. نافذة إدخال كميات جديدة لعدسة (SPH) */}
       {selectedLensSph && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+          onClick={() => setSelectedLensSph(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedLensSph(null)}
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <h3 className="text-lg font-bold text-slate-800 mb-2">تغذية مخزون العدسات</h3>
             <p className="text-sm text-slate-600 mb-1">
               ماركة العدسة: <strong className="text-slate-800">{selectedLens?.brand}</strong>
@@ -458,7 +509,7 @@ export function ProductsInventory({
                   min="1"
                   required
                   value={addLensStockAmount || ''}
-                  onChange={(e) => setAddLensStockAmount(Number(e.target.value))}
+                  onChange={(e) => setAddLensStockAmount(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="مثال: 10"
                   className="w-full border border-slate-300 rounded-xl p-2.5 text-base font-semibold text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
@@ -481,14 +532,14 @@ export function ProductsInventory({
                 <button
                   type="button"
                   onClick={() => setSelectedLensSph(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm hover:bg-slate-100 font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-bold shadow-sm"
+                  disabled={saving || addLensStockAmount <= 0}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold shadow-sm cursor-pointer transition"
                 >
                   {saving ? 'جاري الحفظ...' : 'حفظ التغيرات ✅'}
                 </button>

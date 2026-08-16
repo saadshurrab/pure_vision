@@ -57,7 +57,7 @@ export function DashboardHome({
     return clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
   }, [clients]);
 
-  // حساب النقص في المخزون (منتجات أو عدسات كميتها أقل من 5)
+  // حساب النقص في المخزون
   const lowStockCount = useMemo(() => {
     const lowProducts = products.filter(
       (p) => Math.max(0, (p.stock_qty || 0) - (p.consumed_stock || 0)) < 5
@@ -72,103 +72,115 @@ export function DashboardHome({
   }, [orders]);
 
   return (
-    <div className="space-y-6">
-      {/* 1. لوحة تحكم بيور فيجن والإحصائيات السريعة */}
-      <div className="space-y-4">
-        {/* البوكس العريض بلون أزرق متميز */}
-        <div className="bg-sky-500 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-sky-400">
-          <div>
-            <h1 className="text-2xl font-black text-white drop-shadow-sm">
-              لوحة تحكم Pure Vision Optics
-            </h1>
-            <p className="text-xs text-sky-100 mt-1 font-medium">
-              متابعة حركة المبيعات، المخزون، والديون المستحقة بشكل مباشر.
-            </p>
-          </div>
-          <span className="bg-white/20 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-lg border border-white/30 shadow-inner">
-            النظام يعمل بكفاءة 🟢
-          </span>
+    <div className="space-y-5 bg-[#f8fafc] p-1 sm:p-2 rounded-xl text-slate-800">
+      
+      {/* 1. التنبيه العلوية الأنيق (حد جانبي أخضر وخلفية بيضاء) */}
+      <div className="bg-white p-4 rounded-lg border border-slate-200 border-r-4 border-r-emerald-600 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <p className="text-sm font-bold text-slate-800">
+            النظام يعمل بكفاءة <span className="text-slate-400 font-normal">| آخر تحديث: اليوم</span>
+          </p>
         </div>
-
-        {/* كروت الإحصائيات الأربعة */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* إجمالي المبيعات */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">إجمالي المبيعات المؤكدة</p>
-              <h3 className="text-2xl font-black text-emerald-600">{formatILS(totalSales)}</h3>
-            </div>
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold">
-              💰
-            </div>
-          </div>
-
-          {/* الديون المستحقة */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">إجمالي ديون العملاء</p>
-              <h3 className="text-2xl font-black text-rose-600">{formatILS(totalOutstandingBalance)}</h3>
-            </div>
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl font-bold">
-              💳
-            </div>
-          </div>
-
-          {/* عدد العملاء */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">العملاء المسجلين</p>
-              <h3 className="text-2xl font-black text-sky-600">{clientsCount} عميل</h3>
-            </div>
-            <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xl font-bold">
-              👥
-            </div>
-          </div>
-
-          {/* تنبيهات المخزون */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">تنبيهات نواقص المخزون</p>
-              <h3 className="text-2xl font-black text-amber-600">{lowStockCount} أصناف</h3>
-            </div>
-            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold">
-              ⚠️
-            </div>
-          </div>
-        </div>
+        <p className="text-xs text-slate-500 font-medium">
+          متابعة حركة المبيعات، المخزون، والديون المستحقة بشكل مباشر
+        </p>
       </div>
 
-      {/* 2. ورقة الإجراءات السريعة والطلبات (مباشرة تحت لوحة التحكم) */}
-      <div className="bg-sky-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* 2. بطاقات الإحصائيات الأربعة (نفس نمط التصميم كروت كلاسيكية أنيقة) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* إجمالي المبيعات المؤكدة */}
+        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden">
+          <span className="text-xs font-bold text-slate-500">إجمالي المبيعات المؤكدة</span>
+          <div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight flex items-baseline gap-1">
+              {formatILS(totalSales)}
+            </div>
+            <p className="text-[11px] font-semibold text-emerald-600 mt-1">▲ % عن الشهر الماضي</p>
+          </div>
+          <div className="absolute top-4 left-4 w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-sm">
+            ₪
+          </div>
+        </div>
+
+        {/* إجمالي ديون العملاء */}
+        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden">
+          <span className="text-xs font-bold text-slate-500">إجمالي ديون العملاء</span>
+          <div>
+            <div className="text-2xl font-black text-rose-600 tracking-tight flex items-baseline gap-1">
+              {formatILS(totalOutstandingBalance)}
+            </div>
+            <p className="text-[11px] font-medium text-slate-400 mt-1">عملاء مسجلين</p>
+          </div>
+          <div className="absolute top-4 left-4 w-8 h-8 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center font-bold text-sm">
+            💳
+          </div>
+        </div>
+
+        {/* العملاء المسجلين */}
+        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden">
+          <span className="text-xs font-bold text-slate-500">العملاء المسجلين</span>
+          <div>
+            <div className="text-2xl font-black text-sky-600 tracking-tight">
+              {clientsCount} <span className="text-base font-bold">عملاء</span>
+            </div>
+            <p className="text-[11px] font-semibold text-sky-600 mt-1">▲ عميل جديد هذا الشهر</p>
+          </div>
+          <div className="absolute top-4 left-4 w-8 h-8 bg-sky-50 text-sky-600 rounded-full flex items-center justify-center font-bold text-sm">
+            👥
+          </div>
+        </div>
+
+        {/* تنبيهات نواقص المخزون */}
+        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden">
+          <span className="text-xs font-bold text-slate-500">تنبيهات نواقص المخزون</span>
+          <div>
+            <div className="text-2xl font-black text-amber-500 tracking-tight">
+              {lowStockCount} <span className="text-base font-bold">أصناف</span>
+            </div>
+            <p className="text-[11px] font-semibold text-amber-600 mt-1">⚠️ يتطلب جرد فوري</p>
+          </div>
+          <div className="absolute top-4 left-4 w-8 h-8 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center font-bold text-sm">
+            ⚠️
+          </div>
+        </div>
+
+      </div>
+
+      {/* 3. ورقة الإجراءات السريعة (خلفية كحلي داكن راقية مثل الهيدر تماماً) */}
+      <div className="bg-[#1e293b] text-white p-5 rounded-lg shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold">ورقة الإجراءات السريعة والطلبات</h2>
-          <p className="text-xs text-sky-200 mt-1">
+          <h2 className="text-base font-bold tracking-wide">ورقة الإجراءات السريعة</h2>
+          <p className="text-xs text-slate-300 mt-0.5">
             يمكنك البدء فوراً بإنشاء طلب جديد أو الانتقال للتحقق من جرد المخزون.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full md:w-auto">
           <button
             onClick={() => onNavigate('new-order')}
-            className="bg-white text-sky-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-50 transition shadow-sm flex items-center gap-2"
+            className="flex-1 md:flex-none bg-white text-slate-900 px-5 py-2 rounded shadow-sm text-xs font-bold hover:bg-slate-100 transition flex items-center justify-center gap-1.5"
           >
             <span>➕</span> طلب جديد
           </button>
           <button
             onClick={() => onNavigate('inventory')}
-            className="bg-sky-700 text-white border border-sky-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sky-600 transition flex items-center gap-2"
+            className="flex-1 md:flex-none bg-[#0f172a] text-white border border-slate-700 px-5 py-2 rounded text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-1.5"
           >
             <span>📦</span> جرد المخزون
           </button>
         </div>
       </div>
 
-      {/* 3. أحدث الطلبات والعمليات (البيانات في الأسفل) */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-        <div className="flex justify-between items-center border-b pb-3">
-          <h3 className="font-bold text-slate-800 text-base">📋 أحدث الطلبات والعمليات المسجلة</h3>
+      {/* 4. جدول أحدث الطلبات والعمليات المسجلة */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 flex justify-between items-center border-b border-slate-100 bg-white">
+          <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <span>📋</span> أحدث الطلبات والعمليات المسجلة
+          </h3>
           <button
             onClick={() => onNavigate('orders-history')}
-            className="text-xs font-bold text-sky-600 hover:underline"
+            className="text-xs font-bold text-sky-600 hover:text-sky-700 transition"
           >
             عرض كافة الطلبات ←
           </button>
@@ -177,7 +189,8 @@ export function DashboardHome({
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b text-slate-600 text-xs font-bold">
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-[11px] font-bold">
+                <th className="p-3">رقم الطلب</th>
                 <th className="p-3">تاريخ الطلب</th>
                 <th className="p-3">اسم العميل</th>
                 <th className="p-3">طريقة الدفع</th>
@@ -185,42 +198,45 @@ export function DashboardHome({
                 <th className="p-3">الإجمالي</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 text-xs">
               {recentOrders.length > 0 ? (
                 recentOrders.map((ord) => (
-                  <tr key={ord.id} className="border-b hover:bg-slate-50/80 transition text-sm">
-                    <td className="p-3 text-slate-500 text-xs">
+                  <tr key={ord.id} className="hover:bg-slate-50/60 transition text-slate-700">
+                    <td className="p-3 font-mono text-slate-400 text-[11px]">
+                      #{ord.id.substring(0, 8)}
+                    </td>
+                    <td className="p-3 text-slate-500">
                       {new Date(ord.created_at).toLocaleDateString('ar-EG', {
-                        year: 'numeric',
-                        month: 'short',
                         day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
                       })}
                     </td>
                     <td className="p-3 font-bold text-slate-800">{ord.client_name || 'غير معروف'}</td>
-                    <td className="p-3 text-xs font-semibold">
-                      {ord.payment_method === 'cash' ? '💵 نقدي' : ord.payment_method === 'credit' ? '💳 دين' : '🏦 بنكي'}
+                    <td className="p-3">
+                      <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                        {ord.payment_method === 'cash' ? '💵 نقدي' : ord.payment_method === 'credit' ? '💳 دين' : '🏦 بنكي'}
+                      </span>
                     </td>
                     <td className="p-3">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
                           ord.status === 'confirmed'
-                            ? 'bg-emerald-100 text-emerald-700'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : ord.status === 'draft'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-rose-100 text-rose-700'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}
                       >
-                        {ord.status === 'confirmed' ? 'مؤكد' : ord.status === 'draft' ? 'مسودة' : 'ملغى'}
+                        ● {ord.status === 'confirmed' ? 'مؤكد' : ord.status === 'draft' ? 'مسودة' : 'ملغى'}
                       </span>
                     </td>
-                    <td className="p-3 font-extrabold text-sky-800">{formatILS(ord.total)}</td>
+                    <td className="p-3 font-black text-slate-900">{formatILS(ord.total)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-slate-400 text-sm">
+                  <td colSpan={6} className="p-6 text-center text-slate-400 text-xs">
                     لا توجد طلبات مسجلة حتى الآن.
                   </td>
                 </tr>
@@ -229,6 +245,7 @@ export function DashboardHome({
           </table>
         </div>
       </div>
+
     </div>
   );
 }

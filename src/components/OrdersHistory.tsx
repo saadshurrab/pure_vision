@@ -46,6 +46,7 @@ export function OrdersHistory() {
     setPayingOrderId(order.id);
 
     try {
+      // 1. تحديث طريقة الدفع للطلب لتصبح نقدي (كاش)
       const { error: orderErr } = await supabase
         .from('orders')
         .update({ payment_method: 'cash' })
@@ -53,9 +54,19 @@ export function OrdersHistory() {
 
       if (orderErr) throw orderErr;
 
-      const currentBalance = order.clients.outstanding_balance;
+      // 2. جلب أحدث رصيد للعميل مباشرة من القاعدة لتفادي أي تضارب
+      const { data: freshClient, error: fetchErr } = await supabase
+        .from('clients')
+        .select('outstanding_balance')
+        .eq('id', order.client_id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const currentBalance = freshClient?.outstanding_balance ?? order.clients.outstanding_balance ?? 0;
       const newBalance = Math.max(0, currentBalance - order.total);
 
+      // 3. خصم مبلغ الفاتورة من دين العميل في جدول العملاء
       const { error: clientErr } = await supabase
         .from('clients')
         .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
@@ -84,8 +95,17 @@ export function OrdersHistory() {
 
       if (orderErr) throw orderErr;
 
+      // إذا كان الدفع أجلاً (دين)، يُضاف إجمالي الطلب إلى حساب العميل
       if (order.payment_method === 'credit') {
-        const currentBalance = order.clients.outstanding_balance;
+        const { data: freshClient, error: fetchErr } = await supabase
+          .from('clients')
+          .select('outstanding_balance')
+          .eq('id', order.client_id)
+          .single();
+
+        if (fetchErr) throw fetchErr;
+
+        const currentBalance = freshClient?.outstanding_balance ?? order.clients.outstanding_balance ?? 0;
         const newBalance = currentBalance + order.total;
 
         const { error: clientErr } = await supabase
@@ -115,9 +135,11 @@ export function OrdersHistory() {
 
   const stats = useMemo(() => {
     const totalSales = orders.reduce((acc, o) => (o.status === 'confirmed' ? acc + o.total : acc), 0);
-    const pendingCredit = orders.filter((o) => o.status === 'confirmed' && o.payment_method === 'credit').length;
+    const pendingCreditOrders = orders.filter((o) => o.status === 'confirmed' && o.payment_method === 'credit');
+    const pendingCreditCount = pendingCreditOrders.length;
+    const pendingCreditAmount = pendingCreditOrders.reduce((acc, o) => acc + o.total, 0);
     const draftsCount = orders.filter((o) => o.status === 'draft').length;
-    return { totalSales, pendingCredit, draftsCount, totalCount: orders.length };
+    return { totalSales, pendingCreditCount, pendingCreditAmount, draftsCount, totalCount: orders.length };
   }, [orders]);
 
   if (loading) {
@@ -130,7 +152,7 @@ export function OrdersHistory() {
   }
 
   return (
-    <div className="space-y-5 font-sans">
+    <div className="space-y-5 font-sans" dir="rtl">
       {/* 1️⃣ لوحة الملخص المالي الكلاسيكية */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-emerald-700">
@@ -143,14 +165,17 @@ export function OrdersHistory() {
           <p className="text-lg font-bold text-slate-900 mt-2 font-mono dir-ltr text-right">{formatILS(stats.totalSales)}</p>
         </div>
 
-        <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-amber-600">
+        <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-rose-600">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600">فواتير آجلة (دين)</span>
-            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="text-xs font-semibold text-slate-600">فواتير غير مسددة (ديون)</span>
+            <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-lg font-bold text-slate-900 mt-2">{stats.pendingCredit} <span className="text-xs font-normal text-slate-500">سجل</span></p>
+          <div className="mt-2 flex items-baseline justify-between">
+            <p className="text-lg font-bold text-rose-700 font-mono dir-ltr">{formatILS(stats.pendingCreditAmount)}</p>
+            <span className="text-xs font-medium text-slate-500">({stats.pendingCreditCount} فاتورة)</span>
+          </div>
         </div>
 
         <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-sky-700">
@@ -228,7 +253,7 @@ export function OrdersHistory() {
             >
               <option value="all">تصفية حسب طريقة الدفع (الكل)</option>
               <option value="cash">نقدي (كاش)</option>
-              <option value="credit">آجل (دين)</option>
+              <option value="credit">آجل (على الحساب / دين)</option>
               <option value="bank">تحويل بنكي</option>
             </select>
           </div>
@@ -245,7 +270,7 @@ export function OrdersHistory() {
                 <th className="py-2.5 px-3 border-l border-slate-700">طريقة الدفع</th>
                 <th className="py-2.5 px-3 border-l border-slate-700">الإجمالي</th>
                 <th className="py-2.5 px-3 border-l border-slate-700">الحالة</th>
-                <th className="py-2.5 px-3 text-center">الإجراء / التحصيل</th>
+                <th className="py-2.5 px-3 text-center">حالة التحصيل / الإجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs text-slate-800">
@@ -260,7 +285,7 @@ export function OrdersHistory() {
                     <tr
                       key={o.id}
                       className={`hover:bg-slate-100/70 transition-colors ${
-                        isDraft ? 'bg-amber-50/30' : isCredit ? 'bg-orange-50/10' : ''
+                        isDraft ? 'bg-amber-50/30' : isCredit ? 'bg-rose-50/20' : ''
                       }`}
                     >
                       {/* رقم الطلب */}
@@ -288,14 +313,14 @@ export function OrdersHistory() {
                             o.payment_method === 'cash'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : o.payment_method === 'credit'
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
                               : 'bg-sky-50 text-sky-800 border-sky-300'
                           }`}
                         >
                           {o.payment_method === 'cash'
                             ? 'نقدي (كاش)'
                             : o.payment_method === 'credit'
-                            ? 'آجل (دين)'
+                            ? 'على الحساب (دين)'
                             : 'تحويل بنكي'}
                         </span>
                       </td>
@@ -318,7 +343,7 @@ export function OrdersHistory() {
                         </span>
                       </td>
 
-                      {/* الإجراء والتحصيل */}
+                      {/* حالة التحصيل والإجراء */}
                       <td className="py-2.5 px-3 text-center">
                         {isDraft ? (
                           <button
@@ -338,24 +363,29 @@ export function OrdersHistory() {
                             )}
                           </button>
                         ) : isCredit ? (
-                          <button
-                            onClick={() => handleMarkAsPaid(o)}
-                            disabled={isPaying}
-                            className="inline-flex items-center justify-center gap-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-400 text-white font-semibold px-2.5 py-1 rounded-sm text-[11px] transition-colors border border-emerald-800 shadow-xs mx-auto"
-                          >
-                            {isPaying ? (
-                              'جاري التحصيل...'
-                            ) : (
-                              <>
-                                <svg className="w-3 h-3 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                تحصيل الفاتورة
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-xs border border-rose-200">
+                              غير مسدد (آجل)
+                            </span>
+                            <button
+                              onClick={() => handleMarkAsPaid(o)}
+                              disabled={isPaying}
+                              className="inline-flex items-center justify-center gap-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-400 text-white font-semibold px-2.5 py-1 rounded-sm text-[11px] transition-colors border border-emerald-800 shadow-xs"
+                            >
+                              {isPaying ? (
+                                'جاري التحصيل...'
+                              ) : (
+                                <>
+                                  <svg className="w-3 h-3 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  تحصيل
+                                </>
+                              )}
+                            </button>
+                          </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-xs border border-emerald-200">
                             <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>

@@ -26,7 +26,7 @@ import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
 // ⏱️ مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة)
-const INACTIVITY_TIMEOUT = 60 * 1000;
+const INACTIVITY_TIMEOUT = 300 * 1000;
 
 export default function App() {
   // 🔒 إدارة حالة تسجيل الدخول عبر sessionStorage
@@ -315,7 +315,6 @@ export default function App() {
     setCustomPrescription(null);
   }
 
-  // ✅ تعديل منطقي مهم: تخصيم واستقطاع المخزون الفعلي المتاح محلياً فور الإضافة للسلة
   function addProduct(p: Product, qty: number) {
     if (qty <= 0) return;
 
@@ -342,7 +341,6 @@ export default function App() {
       ];
     });
 
-    // تحديث رقم المخزون في الـ State فوراً لينعكس على كارت المنتج لحظياً
     setProducts((prevProducts) =>
       prevProducts.map((prod) =>
         prod.id === p.id
@@ -352,7 +350,6 @@ export default function App() {
     );
   }
 
-  // ✅ تعديل كمية المنتج في السلة وإعادة فارق المخزون
   function updateCartQty(index: number, qty: number) {
     setCart((prevCart) => {
       const item = prevCart[index];
@@ -374,7 +371,6 @@ export default function App() {
     });
   }
 
-  // ✅ حذف المنتج من السلة وإرجاع كميته كاملة للمخزون
   function removeCartItem(index: number) {
     setCart((prevCart) => {
       const item = prevCart[index];
@@ -391,9 +387,7 @@ export default function App() {
     });
   }
 
-  // ✅ إفراغ السلة بالكامل وإعادة تزامن المخزون المحلي
   function clearCart() {
-    // إرجاع كافة الكميات المحجوزة للمنتجات العادية عند إفراغ السلة
     cart.forEach((item) => {
       if (!('lensProductId' in item)) {
         setProducts((prevProducts) =>
@@ -683,12 +677,16 @@ export default function App() {
     clearCart();
   }
 
+  // 🖨️ تعديل دالة الطباعة لإبراز اسم العميل بوضوح
   function printInvoice(data: InvoiceData) {
     const win = window.open('', '_blank', 'width=800,height=600');
     if (!win) return;
 
     const pmLabel =
-      data.paymentMethod === 'cash' ? 'نقدي' : data.paymentMethod === 'credit' ? 'دين' : 'بنكي';
+      data.paymentMethod === 'cash' ? 'نقدي (كاش)' : data.paymentMethod === 'credit' ? 'على الحساب (دين)' : 'شيك / بنكي';
+
+    const clientName = data.client?.name || (data as any).clientName || 'عميل نقدي';
+    const clientCode = data.client?.code ? ` (${data.client.code})` : '';
 
     const itemRows = data.items
       .map((item) => {
@@ -699,14 +697,14 @@ export default function App() {
               ? `, CYL ${formatSPH(item.cyl)}${item.axis != null ? `, AXIS ${item.axis}°` : ''}`
               : '';
           return `<tr>
-            <td>${item.brand} (BC ${item.bc}, DIA ${item.dia}, SPH ${sphLabel}${cylAxis})</td>
+            <td><strong>${item.brand}</strong> (BC ${item.bc}, DIA ${item.dia}, SPH ${sphLabel}${cylAxis})</td>
             <td style="text-align:center">${item.quantity}</td>
             <td style="text-align:left">${formatILS(item.unitPrice)}</td>
             <td style="text-align:left">${formatILS(item.unitPrice * item.quantity)}</td>
           </tr>`;
         }
         return `<tr>
-          <td>${item.name}</td>
+          <td><strong>${item.name}</strong></td>
           <td style="text-align:center">${item.quantity}</td>
           <td style="text-align:left">${formatILS(item.unitPrice)}</td>
           <td style="text-align:left">${formatILS(item.unitPrice * item.quantity)}</td>
@@ -721,31 +719,61 @@ export default function App() {
 <title>فاتورة ${data.invoiceNumber}</title>
 <style>
   * { font-family: 'Segoe UI', Tahoma, sans-serif; box-sizing: border-box; }
-  body { padding: 40px; color: #1e293b; max-width: 700px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #0284c7; padding-bottom: 20px; }
-  .logo { font-size: 24px; font-weight: bold; color: #0284c7; }
+  body { padding: 40px; color: #1e293b; max-width: 750px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #0284c7; padding-bottom: 15px; }
+  .logo { font-size: 22px; font-weight: bold; color: #0284c7; }
+  .client-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .client-name { font-size: 16px; font-weight: bold; color: #0f172a; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
   th { background: #f1f5f9; padding: 10px 12px; font-size: 13px; text-align: right; border-bottom: 2px solid #cbd5e1; }
   td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
   .totals { margin-right: auto; width: 280px; }
   .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
   .totals .grand { border-top: 2px solid #0284c7; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: bold; color: #0284c7; }
+  .footer-info { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 13px; font-weight: bold; }
 </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo">شركة ومستودع الرؤيا النقية</div>
-    <div>فاتورة: ${data.invoiceNumber}</div>
+    <div>
+      <div class="logo">شركة ومستودع الرؤيا النقية</div>
+      <div style="font-size: 12px; color: #64748b; margin-top: 4px;">تاريخ الفاتورة: ${new Date(data.createdAt || Date.now()).toLocaleDateString('ar-EG')}</div>
+    </div>
+    <div style="text-align:left">
+      <div style="font-size: 18px; font-weight: bold;">فاتورة: ${data.invoiceNumber}</div>
+    </div>
   </div>
+
+  <!-- قسم اسم العميل والبيانات -->
+  <div class="client-card">
+    <div>
+      <span style="font-size: 12px; color: #64748b; display: block;">اسم العميل:</span>
+      <span class="client-name">${clientName}${clientCode}</span>
+    </div>
+  </div>
+
   <table>
-    <thead><tr><th>الصنف</th><th style="text-align:center">الكمية</th><th style="text-align:left">السعر</th><th style="text-align:left">الإجمالي</th></tr></thead>
+    <thead>
+      <tr>
+        <th>الصنف</th>
+        <th style="text-align:center">الكمية</th>
+        <th style="text-align:left">السعر</th>
+        <th style="text-align:left">الإجمالي</th>
+      </tr>
+    </thead>
     <tbody>${itemRows}</tbody>
   </table>
+
   <div class="totals">
-    <div class="row"><span>المجموع</span><span>${formatILS(data.subtotal)}</span></div>
-    <div class="row grand"><span>الإجمالي</span><span>${formatILS(data.total)}</span></div>
+    ${data.discountAmount > 0 ? `<div class="row"><span>المجموع:</span><span>${formatILS(data.subtotal)}</span></div>` : ''}
+    ${data.discountAmount > 0 ? `<div class="row" style="color: #e11d48;"><span>الخصم:</span><span>- ${formatILS(data.discountAmount)}</span></div>` : ''}
+    <div class="row grand"><span>الإجمالي:</span><span>${formatILS(data.total)}</span></div>
   </div>
-  <p>طريقة الدفع: ${pmLabel}</p>
+
+  <div class="footer-info">
+    طريقة الدفع: ${pmLabel}
+  </div>
+
   <script>window.onload = function() { window.print(); }</script>
 </body>
 </html>`);
@@ -768,14 +796,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      {/* القائمة الجانبية المحدثة بأسلوب التصميم الثابت والأزرار الجديدة */}
+      {/* القائمة الجانبية */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
       />
 
-      {/* المحتوى الرئيسي للمنصة مع مراعاة الهامش الأيمن للمحاذاة مع القائمة الجانبية */}
+      {/* المحتوى الرئيسي للمنصة */}
       <main className="md:pr-[220px] transition-all p-4 md:p-6 min-h-screen">
 
         {/* Tab 0: الشاشة الرئيسية */}
@@ -881,8 +909,10 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: سجل الطلبات */}
-        {activeTab === 'orders-history' && <OrdersHistory />}
+        {/* Tab 3: سجل الطلبات (تمرير دالة الطباعة وعرض الفاتورة) */}
+        {activeTab === 'orders-history' && (
+          <OrdersHistory onPrintInvoice={printInvoice} />
+        )}
 
         {/* Tab 4: دليل العملاء والمرتجعات */}
         {activeTab === 'clients' && (

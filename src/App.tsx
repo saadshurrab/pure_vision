@@ -838,172 +838,151 @@ export default function App() {
         {activeTab === 'orders-history' && <OrdersHistory />}
 
         {/* Tab 4: دليل العملاء والمرتجعات */}
-        {activeTab === 'clients' && (
-          <div className="space-y-6">
-            {selectedReturnClient && (
-              <div className="bg-amber-50 border border-amber-200 p-5 rounded-xl shadow-sm space-y-4">
-                <div className="flex justify-between items-center border-b border-amber-200 pb-3">
-                  <div>
-                    <h3 className="font-bold text-amber-900 text-base">
-                      ↩ تسجيل مرجع منتج للعميل: {selectedReturnClient.name}
-                    </h3>
-                    <p className="text-xs text-amber-700 mt-0.5">
-                      الدين الحالي: <span className="font-bold">{formatILS(selectedReturnClient.outstanding_balance)}</span>
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedReturnClient(null)}
-                    className="text-amber-800 text-xs font-bold hover:underline"
-                  >
-                    إلغاء المرتجع ✕
-                  </button>
-                </div>
+{activeTab === 'clients' && (
+  <div className="space-y-6">
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div>
-                    <label className="block text-xs font-bold text-amber-900 mb-1">نوع المرجع:</label>
-                    <select
-                      value={returnItemType}
-                      onChange={(e) => setReturnItemType(e.target.value as 'product' | 'lens')}
-                      className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
-                    >
-                      <option value="product">منتج عام / ملحقات</option>
-                      <option value="lens">عدسة لاصقة</option>
-                    </select>
-                  </div>
-
-                  {returnItemType === 'product' ? (
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-amber-900 mb-1">اختر المنتج المرجع:</label>
-                      <select
-                        value={selectedReturnProductId}
-                        onChange={(e) => setSelectedReturnProductId(e.target.value)}
-                        className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
-                      >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({formatILS(p.unit_price)})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-900 mb-1">اختر نوع العدسة:</label>
-                        <select
-                          value={selectedReturnLensId}
-                          onChange={(e) => setSelectedReturnLensId(e.target.value)}
-                          className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
-                        >
-                          {lensProducts.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.brand} ({formatILS(l.unit_price)})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-amber-900 mb-1">مقاس العدسة (SPH):</label>
-                        <select
-                          value={returnSph}
-                          onChange={(e) => setReturnSph(Number(e.target.value))}
-                          className="w-full p-2 border rounded-lg text-sm bg-white font-semibold text-slate-700"
-                        >
-                          {SPH_ALL.map((sph) => (
-                            <option key={sph} value={sph}>
-                              {formatSPH(sph)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold text-amber-900 mb-1">الكمية المرجعة:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={returnQty}
-                      onChange={(e) => setReturnQty(Math.max(1, Number(e.target.value)))}
-                      className="w-full p-2 border rounded-lg text-sm bg-white font-bold text-slate-800 text-center"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap justify-between items-center bg-amber-100/70 p-3 rounded-lg border border-amber-200">
-                  <div className="text-sm font-bold text-amber-900">
-                    إجمالي قيمة المرجع المخصومة تلقائياً: <span className="text-emerald-700 font-extrabold text-base">{formatILS(calculatedReturnTotal)}</span>
-                  </div>
-
-                  <button
-                    onClick={handleReturnProduct}
-                    className="bg-amber-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-amber-800 transition shadow-sm"
-                  >
-                    تأكيد إرجاع المنتج وخصم القيمـة
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-lg">🔍 قائمة العملاء السريعة</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">البحث السريع واستعراض بيانات العملاء والديون المترتبة عليهم</p>
-                </div>
-
-                <div className="relative w-full sm:w-80">
-                  <input
-                    type="text"
-                    value={clientSearchQuery}
-                    onChange={(e) => setClientSearchQuery(e.target.value)}
-                    placeholder="ابحث باسم العميل أو رقم الهاتف..."
-                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
-                  />
-                  {clientSearchQuery && (
-                    <button
-                      onClick={() => setClientSearchQuery('')}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredClients.length > 0 ? (
-                  filteredClients.map((c) => (
-                    <div key={c.id} className="p-4 border border-slate-200 rounded-xl flex justify-between items-center bg-slate-50 hover:bg-white hover:border-sky-300 transition shadow-sm">
-                      <div>
-                        <div className="font-bold text-slate-800 text-base">{c.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{c.phone ? `📱 ${c.phone}` : 'بدون رقم هاتف'}</div>
-                        <div className="text-sm mt-2 font-semibold text-rose-600">
-                          الدين: <span className="font-bold">{formatILS(c.outstanding_balance)}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setSelectedReturnClient(c)}
-                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition flex items-center gap-1 shadow-sm"
-                      >
-                        ↩ مرجع منتج
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="col-span-full py-8 text-center text-slate-400 font-semibold text-sm">
-                    لم يتم العثور على أي عميل يطابق عبارة البحث "{clientSearchQuery}"
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <ClientsList clients={clients} onClientAdded={loadData} />
+    {/* ↩️ نموذج تسجيل مرجع منتج للعميل المختار */}
+    {selectedReturnClient && (
+      <div className="bg-amber-50/80 border border-amber-200 p-5 rounded-2xl shadow-xs space-y-4 animate-in fade-in duration-200">
+        <div className="flex justify-between items-center border-b border-amber-200/80 pb-3">
+          <div>
+            <h3 className="font-bold text-amber-950 text-base flex items-center gap-2">
+              <span>↩</span>
+              <span>تسجيل مرجع منتج للعميل: {selectedReturnClient.name}</span>
+            </h3>
+            <p className="text-xs text-amber-800 mt-0.5">
+              الدين الحالي: <span className="font-bold font-mono">{formatILS(selectedReturnClient.outstanding_balance)}</span>
+            </p>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={() => setSelectedReturnClient(null)}
+            className="text-amber-800 hover:text-amber-950 text-xs font-bold hover:underline bg-amber-100/50 px-2.5 py-1 rounded-lg border border-amber-200 transition"
+          >
+            إلغاء المرتجع ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-xs font-bold text-amber-900 mb-1.5">نوع المرجع:</label>
+            <select
+              value={returnItemType}
+              onChange={(e) => setReturnItemType(e.target.value as 'product' | 'lens')}
+              className="w-full p-2.5 border border-amber-200 rounded-xl text-xs bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+            >
+              <option value="product">منتج عام / ملحقات</option>
+              <option value="lens">عدسة لاصقة</option>
+            </select>
+          </div>
+
+          {returnItemType === 'product' ? (
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-amber-900 mb-1.5">اختر المنتج المرجع:</label>
+              <select
+                value={selectedReturnProductId}
+                onChange={(e) => setSelectedReturnProductId(e.target.value)}
+                className="w-full p-2.5 border border-amber-200 rounded-xl text-xs bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({formatILS(p.unit_price)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-amber-900 mb-1.5">اختر نوع العدسة:</label>
+                <select
+                  value={selectedReturnLensId}
+                  onChange={(e) => setSelectedReturnLensId(e.target.value)}
+                  className="w-full p-2.5 border border-amber-200 rounded-xl text-xs bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                >
+                  {lensProducts.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.brand} ({formatILS(l.unit_price)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-amber-900 mb-1.5">مقاس العدسة (SPH):</label>
+                <select
+                  value={returnSph}
+                  onChange={(e) => setReturnSph(Number(e.target.value))}
+                  className="w-full p-2.5 border border-amber-200 rounded-xl text-xs bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                >
+                  {SPH_ALL.map((sph) => (
+                    <option key={sph} value={sph}>
+                      {formatSPH(sph)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-amber-900 mb-1.5">الكمية المرجعة:</label>
+            <input
+              type="number"
+              min="1"
+              value={returnQty}
+              onChange={(e) => setReturnQty(Math.max(1, Number(e.target.value)))}
+              className="w-full p-2.5 border border-amber-200 rounded-xl text-xs bg-white font-bold text-slate-900 text-center focus:ring-2 focus:ring-amber-500/20 focus:outline-none font-mono"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-between items-center bg-amber-100/60 p-3 rounded-xl border border-amber-200/80 gap-3">
+          <div className="text-xs sm:text-sm font-bold text-amber-950">
+            إجمالي قيمة المرجع المخصومة تلقائياً: <span className="text-emerald-700 font-extrabold text-base font-mono">{formatILS(calculatedReturnTotal)}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleReturnProduct}
+            className="bg-amber-900 text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold hover:bg-amber-800 active:scale-[0.99] transition shadow-xs"
+          >
+            تأكيد إرجاع المنتج وخصم القيمـة
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* 🔍 استدعاء مكوّن اختيار واستعراض العملاء المحدث (ClientSelector) */}
+    <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 space-y-4">
+      <div className="border-b border-slate-100 pb-3.5">
+        <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+          <span>🔍</span>
+          <span>قائمة العملاء السريعة</span>
+        </h3>
+        <p className="text-xs text-slate-500 mt-0.5">البحث السريع واستعراض بيانات العملاء والديون المترتبة عليهم وتحديد المرتجعات</p>
+      </div>
+
+      <ClientSelector
+        clients={clients}
+        selectedClientId={selectedReturnClient?.id || ''}
+        onSelect={(id) => {
+          const client = clients.find((c) => c.id === id);
+          if (client) {
+            setSelectedReturnClient(client);
+          }
+        }}
+        onCreateOrder={(clientId) => {
+          // يمكن توجيهه للطلب أو التبويب الخاص بالطلبات
+          setActiveTab('orders'); // إن وجد متغيّر للتبويبات
+        }}
+      />
+    </div>
+
+    {/* 📋 دليل وشجرة العملاء الكاملة */}
+    <ClientsList clients={clients} onClientAdded={loadData} />
+  </div>
+)}
       </main>
 
       {/* النافذة المنبثقة Modal */}

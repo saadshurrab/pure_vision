@@ -111,7 +111,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     }
   }
 
-  // تسجيل عملية تسديد (واصل)
+  // تسجيل عملية تسديد (واصل) مع الربط والتوافق التلقائي مع سجل الطلبات
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!showPayModal || payAmount <= 0) {
@@ -123,11 +123,13 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     setError(null);
 
     try {
-      // 1. جلب أحدث بيانات للعميل مباشرة من قاعدة البيانات
+      const clientId = showPayModal.id;
+
+      // 1. جلب أحدث بيانات العميل مباشرة من قاعدة البيانات
       const { data: freshClient, error: fetchErr } = await supabase
         .from('clients')
         .select('outstanding_balance, total_paid')
-        .eq('id', showPayModal.id)
+        .eq('id', clientId)
         .single();
 
       if (fetchErr) throw fetchErr;
@@ -138,22 +140,55 @@ export function ClientsList({ clients, onClientAdded }: Props) {
       const newBalance = Math.max(0, currentBalance - payAmount);
       const newTotalPaid = currentTotalPaid + payAmount;
 
-      // 2. تحديث الحساب المالي للعميل
-      const { error: err } = await supabase
+      // 2. تحديث الحساب المالي العام للعميل
+      const { error: clientUpdateErr } = await supabase
         .from('clients')
         .update({
           outstanding_balance: Math.round(newBalance * 100) / 100,
           total_paid: Math.round(newTotalPaid * 100) / 100,
         })
-        .eq('id', showPayModal.id);
+        .eq('id', clientId);
 
-      if (err) throw err;
+      if (clientUpdateErr) throw clientUpdateErr;
+
+      // 3. 🎯 التوافق مع سجل الطلبات: جلب الطلبات غير المدفوعة للعميل مرتبة من الأقدم للأحدث (FIFO)
+      const { data: unpaidOrders, error: ordersErr } = await supabase
+        .from('orders')
+        .select('id, total_amount, payment_status')
+        .eq('client_id', clientId)
+        .neq('payment_status', 'paid')
+        .order('created_at', { ascending: true });
+
+      if (ordersErr) throw ordersErr;
+
+      // 4. تسوية المبالغ وتسديد الطلبات الآجلة بالتتابع
+      if (unpaidOrders && unpaidOrders.length > 0) {
+        let remainingPayment = payAmount;
+
+        for (const order of unpaidOrders) {
+          if (remainingPayment <= 0) break;
+
+          const orderAmount = order.total_amount || 0;
+
+          // تحديث حالة الطلب إلى مدفوع "paid"
+          const { error: orderUpdateErr } = await supabase
+            .from('orders')
+            .update({
+              payment_status: 'paid',
+            })
+            .eq('id', order.id);
+
+          if (orderUpdateErr) throw orderUpdateErr;
+
+          remainingPayment -= orderAmount;
+        }
+      }
 
       setShowPayModal(null);
       setPayAmount(0);
-      onClientAdded();
+      onClientAdded(); // إعادة تنشيط البيانات لتحديث القوائم في الواجهة
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'حدث خطأ أثناء التسديد');
+      setError(e instanceof Error ? e.message : 'حدث خطأ أثناء التسديد وتسوية الطلبات');
     } finally {
       setSaving(false);
     }

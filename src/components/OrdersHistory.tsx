@@ -1,18 +1,27 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase, formatILS, type Client } from '@/lib/supabase';
+import { supabase, formatILS, type Client, type InvoiceData } from '@/lib/supabase';
 
 interface OrderRecord {
   id: string;
   created_at: string;
   total: number;
+  subtotal?: number;
+  discount_percent?: number;
+  discount_amount?: number;
   status: 'draft' | 'confirmed';
   payment_method: 'cash' | 'credit' | 'bank';
   notes: string | null;
   client_id: string;
   clients: Client;
+  order_items?: any[];
+  invoices?: { invoice_number: string }[];
 }
 
-export function OrdersHistory() {
+interface OrdersHistoryProps {
+  onPrintInvoice?: (invoiceData: InvoiceData) => void;
+}
+
+export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
@@ -29,9 +38,19 @@ export function OrdersHistory() {
 
   async function fetchOrders() {
     setLoading(true);
+    // جلب الطلبات مع بيانات العميل والأصناف ورقم الفاتورة
     const { data, error } = await supabase
       .from('orders')
-      .select('*, clients(*)')
+      .select(`
+        *,
+        clients(*),
+        order_items(
+          *,
+          lens_products(brand, bc, dia),
+          products(name, category)
+        ),
+        invoices(invoice_number)
+      `)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -39,6 +58,54 @@ export function OrdersHistory() {
     }
     setLoading(false);
   }
+
+  // معالجة فتح وطباعة الفاتورة للطلب المحدد
+  const handlePrint = (order: OrderRecord) => {
+    if (!onPrintInvoice) return;
+
+    const items = (order.order_items || []).map((item) => {
+      if (item.item_type === 'lens' || item.lens_product_id) {
+        return {
+          lensProductId: item.lens_product_id,
+          brand: item.lens_products?.brand || 'عدسة',
+          bc: item.lens_products?.bc || '',
+          dia: item.lens_products?.dia || '',
+          unitPrice: item.unit_price,
+          sph: item.sph,
+          cyl: item.cyl,
+          axis: item.axis,
+          quantity: item.quantity,
+        };
+      }
+      return {
+        productId: item.product_id,
+        name: item.products?.name || 'منتج',
+        unitPrice: item.unit_price,
+        quantity: item.quantity,
+      };
+    });
+
+    const invoiceNumber =
+      order.invoices && order.invoices.length > 0
+        ? order.invoices[0].invoice_number
+        : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+
+    const invoiceData: InvoiceData = {
+      invoiceNumber,
+      orderId: order.id,
+      client: order.clients || { name: 'عميل نقدي' },
+      items,
+      subtotal: order.subtotal || order.total,
+      discountPercent: order.discount_percent || 0,
+      discountAmount: order.discount_amount || 0,
+      total: order.total,
+      paymentMethod: order.payment_method || 'cash',
+      notes: order.notes,
+      createdAt: order.created_at,
+    };
+
+    onPrintInvoice(invoiceData);
+  };
 
   // تسديد الفاتورة الآجلة
   async function handleMarkAsPaid(order: OrderRecord) {
@@ -259,7 +326,7 @@ export function OrdersHistory() {
           </div>
         </div>
 
-        {/* 3️⃣ جدول البيانات الرسمي الكلاسيكي */}
+        {/* 3️⃣ جدول البيانات الرسمية */}
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">
             <thead>
@@ -270,6 +337,7 @@ export function OrdersHistory() {
                 <th className="py-2.5 px-3 border-l border-slate-700">طريقة الدفع</th>
                 <th className="py-2.5 px-3 border-l border-slate-700">الإجمالي</th>
                 <th className="py-2.5 px-3 border-l border-slate-700">الحالة</th>
+                <th className="py-2.5 px-3 border-l border-slate-700 text-center">الفاتورة</th>
                 <th className="py-2.5 px-3 text-center">حالة التحصيل / الإجراء</th>
               </tr>
             </thead>
@@ -343,6 +411,20 @@ export function OrdersHistory() {
                         </span>
                       </td>
 
+                      {/* عمود الفاتورة / العرض والطباعة */}
+                      <td className="py-2.5 px-3 border-l border-slate-200 text-center">
+                        <button
+                          onClick={() => handlePrint(o)}
+                          title="معاينة وطباعة الفاتورة"
+                          className="inline-flex items-center justify-center gap-1 bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 font-semibold px-2 py-1 rounded-sm text-[11px] transition-colors shadow-xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          الفاتورة
+                        </button>
+                      </td>
+
                       {/* حالة التحصيل والإجراء */}
                       <td className="py-2.5 px-3 text-center">
                         {isDraft ? (
@@ -398,7 +480,7 @@ export function OrdersHistory() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 font-medium text-xs">
+                  <td colSpan={8} className="py-8 text-center text-slate-500 font-medium text-xs">
                     لا توجد سجلات مالية أو طلبات مطابقة للفلترة المحددة.
                   </td>
                 </tr>

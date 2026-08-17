@@ -39,6 +39,22 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // إعادة ضبط نموذج الإضافة
+  const resetAddForm = () => {
+    setName('');
+    setCode('');
+    setCity('');
+    setPhone('');
+    setError(null);
+  };
+
+  // فتح نافذة الدفع مع ضبط القيمة الأولية
+  const handleOpenPayModal = (client: Client) => {
+    setShowPayModal(client);
+    setPayAmount(client.outstanding_balance || 0);
+    setError(null);
+  };
+
   // فلترة العملاء بناءً على حقل البحث
   const filteredClients = useMemo(() => {
     if (!searchQuery.trim()) return clients;
@@ -53,13 +69,19 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   }, [clients, searchQuery]);
 
   // إحصائيات عامة
-  const totalDebtSum = clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
-  const totalPaidSum = clients.reduce((sum, c) => sum + (c.total_paid || 0), 0);
+  const totalDebtSum = useMemo(
+    () => clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0),
+    [clients]
+  );
+  const totalPaidSum = useMemo(
+    () => clients.reduce((sum, c) => sum + (c.total_paid || 0), 0),
+    [clients]
+  );
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
-    if (!name || !code) {
-      setError('يرجى كتابة اسم العميل والكود');
+    if (!name.trim() || !code.trim()) {
+      setError('يرجى كتابة اسم العميل والكود التعريفي');
       return;
     }
 
@@ -68,10 +90,10 @@ export function ClientsList({ clients, onClientAdded }: Props) {
 
     try {
       const { error: err } = await supabase.from('clients').insert({
-        name,
-        code,
-        city: city || null,
-        phone: phone || null,
+        name: name.trim(),
+        code: code.trim(),
+        city: city.trim() || null,
+        phone: phone.trim() || null,
         outstanding_balance: 0,
         total_paid: 0,
         active: true,
@@ -80,10 +102,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
       if (err) throw err;
 
       setShowAddModal(false);
-      setName('');
-      setCode('');
-      setCity('');
-      setPhone('');
+      resetAddForm();
       onClientAdded();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'حدث خطأ أثناء إضافة العميل');
@@ -95,18 +114,31 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   // تسجيل عملية تسديد (واصل)
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!showPayModal || payAmount <= 0) return;
+    if (!showPayModal || payAmount <= 0) {
+      setError('يرجى إدخال مبلغ دفع صحيح أكثر من صفر');
+      return;
+    }
 
     setSaving(true);
     setError(null);
 
     try {
-      const currentBalance = showPayModal.outstanding_balance || 0;
-      const currentTotalPaid = showPayModal.total_paid || 0;
+      // 1. جلب أحدث بيانات للعميل مباشرة من قاعدة البيانات
+      const { data: freshClient, error: fetchErr } = await supabase
+        .from('clients')
+        .select('outstanding_balance, total_paid')
+        .eq('id', showPayModal.id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const currentBalance = freshClient?.outstanding_balance ?? showPayModal.outstanding_balance ?? 0;
+      const currentTotalPaid = freshClient?.total_paid ?? showPayModal.total_paid ?? 0;
 
       const newBalance = Math.max(0, currentBalance - payAmount);
       const newTotalPaid = currentTotalPaid + payAmount;
 
+      // 2. تحديث الحساب المالي للعميل
       const { error: err } = await supabase
         .from('clients')
         .update({
@@ -128,14 +160,16 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   }
 
   return (
-    <div className="space-y-6 dir-rtl">
+    <div className="space-y-6 font-sans" dir="rtl">
       {/* 📊 بطاقات ملخص الإحصائيات الرسمية */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="bg-white border border-rose-100 rounded-2xl p-5 shadow-xs flex justify-between items-center relative overflow-hidden">
           <div className="absolute top-0 right-0 w-1.5 h-full bg-rose-500 rounded-r-2xl" />
           <div>
             <p className="text-xs font-semibold tracking-wide text-rose-600 uppercase">إجمالي الديون القائمة (المستحقة)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight">{formatILS(totalDebtSum)}</h3>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight dir-ltr text-right">
+              {formatILS(totalDebtSum)}
+            </h3>
           </div>
           <div className="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100/60">
             <TrendingDown className="w-6 h-6" />
@@ -146,7 +180,9 @@ export function ClientsList({ clients, onClientAdded }: Props) {
           <div className="absolute top-0 right-0 w-1.5 h-full bg-emerald-500 rounded-r-2xl" />
           <div>
             <p className="text-xs font-semibold tracking-wide text-emerald-600 uppercase">إجمالي المدفوعات التراكمية (الواصل)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight">{formatILS(totalPaidSum)}</h3>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight dir-ltr text-right">
+              {formatILS(totalPaidSum)}
+            </h3>
           </div>
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100/60">
             <Wallet className="w-6 h-6" />
@@ -189,7 +225,10 @@ export function ClientsList({ clients, onClientAdded }: Props) {
             </div>
 
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                resetAddForm();
+                setShowAddModal(true);
+              }}
               className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-xl transition-all text-xs shadow-xs active:scale-[0.98]"
             >
               <UserPlus className="w-4 h-4" />
@@ -231,10 +270,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                       <td className="py-3.5 px-4 text-center">
                         {hasDebt ? (
                           <button
-                            onClick={() => {
-                              setShowPayModal(c);
-                              setPayAmount(c.outstanding_balance);
-                            }}
+                            onClick={() => handleOpenPayModal(c)}
                             className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all mx-auto active:scale-[0.97]"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
@@ -268,7 +304,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
             <button
               onClick={() => setShowPayModal(null)}
-              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -304,8 +340,8 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                   step="0.01"
                   required
                   min="0.01"
-                  max={showPayModal.outstanding_balance}
-                  value={payAmount}
+                  max={showPayModal.outstanding_balance || undefined}
+                  value={payAmount || ''}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
                   className="w-full border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-2.5 text-base font-mono font-bold text-slate-900 outline-none transition-all"
                 />
@@ -315,7 +351,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                 <div className="flex justify-between text-slate-600">
                   <span>الدين بعد الخصم:</span>
                   <span className="font-bold font-mono text-slate-900">
-                    {formatILS(Math.max(0, showPayModal.outstanding_balance - payAmount))}
+                    {formatILS(Math.max(0, (showPayModal.outstanding_balance || 0) - payAmount))}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
@@ -354,7 +390,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
             <button
               onClick={() => setShowAddModal(false)}
-              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>

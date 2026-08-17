@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { CheckCircle2, X, Eye, Droplets, Glasses, Boxes, Printer, Sparkles } from 'lucide-react';
+import { CheckCircle2, X, Eye, Droplets, Glasses, Boxes, Printer, Sparkles, CreditCard, AlertCircle } from 'lucide-react';
 import type { Client, CartItem, PaymentMethod, InvoiceData } from '@/lib/supabase';
 import { isLensItem, formatILS, formatSPH } from '@/lib/supabase';
 
@@ -12,6 +12,8 @@ export interface OrderSummary {
   discountPercent: number;
   discountAmount: number;
   total: number;
+  paidAmount?: number;      // المبلغ المدفوع
+  remainingAmount?: number; // المبلغ المتبقي (الدين)
   paymentMethod: PaymentMethod;
   status: 'draft' | 'confirmed';
   createdAt: string;
@@ -24,8 +26,8 @@ interface Props {
 }
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  cash: 'نقدي',
-  credit: 'دين',
+  cash: 'نقدي (كاش)',
+  credit: 'على الحساب (دين)',
   check: 'شيك',
 };
 
@@ -49,6 +51,23 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
 
   const isConfirmed = summary.status === 'confirmed';
 
+  // حساب المبالغ بدقة لتحديد حالة الدفع (دين / مسدد / جزئي)
+  const total = summary.total || 0;
+  
+  // إذا لم تُمرر قيم explicit، نحدد بناءً على طريقة الدفع
+  let paidAmount = summary.paidAmount !== undefined 
+    ? summary.paidAmount 
+    : (summary.paymentMethod === 'credit' ? 0 : total);
+    
+  let remainingAmount = summary.remainingAmount !== undefined 
+    ? summary.remainingAmount 
+    : Math.max(0, total - paidAmount);
+
+  // تحديد بطاقة الحالة المالية للطلب
+  const isFullyPaid = remainingAmount <= 0;
+  const isFullyCredit = paidAmount <= 0 && total > 0;
+  const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0;
+
   const handlePrint = () => {
     if (!onPrint) return;
     const invoice: InvoiceData = {
@@ -71,6 +90,7 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
+      dir="rtl"
     >
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
@@ -80,7 +100,11 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
         <div
           className={`px-6 py-5 flex items-center justify-between ${
             isConfirmed
-              ? 'bg-gradient-to-l from-emerald-600 to-teal-600'
+              ? isFullyCredit
+                ? 'bg-gradient-to-l from-rose-600 to-amber-600'
+                : isPartiallyPaid
+                ? 'bg-gradient-to-l from-amber-600 to-sky-600'
+                : 'bg-gradient-to-l from-emerald-600 to-teal-600'
               : 'bg-gradient-to-l from-slate-600 to-slate-700'
           }`}
         >
@@ -90,7 +114,7 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">
-                {isConfirmed ? 'تم حفظ الطلب بنجاح' : 'تم حفظ المسودة بنجاح'}
+                {isConfirmed ? 'تم تسجيل الطلب بنجاح' : 'تم حفظ المسودة بنجاح'}
               </h2>
               <p className="text-sm text-white/80">
                 {isConfirmed ? `فاتورة رقم ${summary.invoiceNumber}` : `مسودة رقم ${summary.orderId.slice(0, 8)}`}
@@ -108,11 +132,19 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* Client info */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <div className="text-xs text-slate-500 mb-1">العميل</div>
-            <div className="font-bold text-slate-800">{summary.client.name}</div>
-            <div className="text-sm text-slate-500">
-              {summary.client.code} · {summary.client.city || '—'}
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex justify-between items-center">
+            <div>
+              <div className="text-xs text-slate-500 mb-0.5">العميل</div>
+              <div className="font-bold text-slate-800">{summary.client.name}</div>
+              <div className="text-xs text-slate-500">
+                {summary.client.code} · {summary.client.city || '—'}
+              </div>
+            </div>
+            <div className="text-left">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-sm">
+                <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                {PAYMENT_LABELS[summary.paymentMethod] || 'نقدي'}
+              </span>
             </div>
           </div>
 
@@ -121,7 +153,7 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
             <div className="text-sm font-bold text-slate-700 mb-2">
               الأصناف ({summary.items.length})
             </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
               {summary.items.map((item, idx) => (
                 <div
                   key={idx}
@@ -163,8 +195,8 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
             </div>
           </div>
 
-          {/* Totals */}
-          <div className="space-y-1.5 pt-2">
+          {/* Totals Breakdown */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">المجموع الفرعي</span>
               <span className="font-medium text-slate-700">{formatILS(summary.subtotal)}</span>
@@ -172,29 +204,52 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
             {summary.discountAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">الخصم ({summary.discountPercent}%)</span>
-                <span className="font-medium text-red-600">- {formatILS(summary.discountAmount)}</span>
+                <span className="font-medium text-rose-600">- {formatILS(summary.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between items-center border-t border-slate-200 pt-2">
-              <span className="font-bold text-slate-700">الإجمالي</span>
-              <span className="text-xl font-bold text-sky-700">{formatILS(summary.total)}</span>
+              <span className="font-black text-slate-800">إجمالي الفاتورة</span>
+              <span className="text-lg font-black text-slate-900 font-mono">{formatILS(summary.total)}</span>
             </div>
           </div>
 
-          {/* Payment + status */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-3 py-1.5 bg-sky-50 border border-sky-100 rounded-lg text-sky-700 font-medium">
-              الدفع: {PAYMENT_LABELS[summary.paymentMethod]}
-            </span>
-            <span
-              className={`px-3 py-1.5 rounded-lg font-medium ${
-                isConfirmed
-                  ? 'bg-emerald-50 border border-emerald-100 text-emerald-700'
-                  : 'bg-slate-100 border border-slate-200 text-slate-600'
-              }`}
-            >
-              {isConfirmed ? 'مؤكد' : 'مسودة'}
-            </span>
+          {/* FINANCIAL STATUS BADGE (تفاصيل التسديد والدين) */}
+          <div className="pt-2">
+            {isFullyPaid && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-xs font-bold">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  حالة التحصيل: مسدد بالكامل
+                </span>
+                <span className="font-mono">{formatILS(total)}</span>
+              </div>
+            )}
+
+            {isFullyCredit && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between text-xs font-bold">
+                <span className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                  حالة التحصيل: غير مسدد (آجل / دين بالكامل)
+                </span>
+                <span className="font-mono font-black text-rose-700">{formatILS(remainingAmount)}</span>
+              </div>
+            )}
+
+            {isPartiallyPaid && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    حالة التحصيل: دفع جزئي
+                  </span>
+                  <span className="text-amber-700 font-mono">متبقي (دين): {formatILS(remainingAmount)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-600 border-t border-amber-200/60 pt-1">
+                  <span>الواصل (المدفوع): {formatILS(paidAmount)}</span>
+                  <span>من إجمالي: {formatILS(total)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -211,7 +266,7 @@ export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
           )}
           <button
             onClick={onClose}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm text-white bg-sky-600 hover:bg-sky-700 transition shadow-md"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-slate-800 transition shadow-md"
           >
             طلب جديد
           </button>

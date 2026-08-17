@@ -18,19 +18,22 @@ import {
 } from 'lucide-react';
 import { supabase, formatILS, type Product } from '@/lib/supabase';
 
-// واجهات البيانات للعدسات ومخزونها
+// واجهات البيانات للعدسات ومخزونها (تم إضافة دعم التورic)
 export interface LensProduct {
   id: string;
   brand: string;
   unit_price: number;
   bc?: string;
   dia?: string;
+  is_toric?: boolean;
 }
 
 export interface LensStockItem {
   id: string;
   lens_product_id: string;
   sph: number;
+  cyl?: number | null;
+  axis?: number | null;
   stock_qty: number;
 }
 
@@ -65,6 +68,8 @@ export function ProductsInventory({ onRefreshData }: Props) {
     id?: string;
     lens_product_id: string;
     sph: number;
+    cyl?: number | null;
+    axis?: number | null;
     currentQty: number;
   } | null>(null);
   const [addLensStockAmount, setAddLensStockAmount] = useState<number>(0);
@@ -94,7 +99,6 @@ export function ProductsInventory({ onRefreshData }: Props) {
   const fetchLensesData = useCallback(async () => {
     setLoadingLenses(true);
     try {
-      // جلب جميع العلامات التجارية للعدسات
       const { data: lensesData, error: lensesErr } = await supabase
         .from('lens_products')
         .select('*')
@@ -105,12 +109,11 @@ export function ProductsInventory({ onRefreshData }: Props) {
       const fetchedLenses = (lensesData as LensProduct[]) || [];
       setLensProducts(fetchedLenses);
 
-      // تحديد العدسة الأولى تلقائياً إذا لم تكن محددة
       if (fetchedLenses.length > 0 && !selectedLensId) {
         setSelectedLensId(fetchedLenses[0].id);
       }
 
-      // جلب مخزون الدرجات لجميع العدسات
+      // جلب مخزون الدرجات لجميع العدسات بما فيها العادية والتوريك
       const { data: stocksData, error: stocksErr } = await supabase
         .from('lens_stock')
         .select('*');
@@ -158,7 +161,7 @@ export function ProductsInventory({ onRefreshData }: Props) {
     }
   }
 
-  // Handle Lens Stock Addition (UPSERT to Supabase)
+  // Handle Lens Stock Addition (UPSERT to Supabase with Toric Support)
   async function handleAddLensStock(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedLensSphItem || addLensStockAmount <= 0) return;
@@ -168,7 +171,6 @@ export function ProductsInventory({ onRefreshData }: Props) {
       const newQty = selectedLensSphItem.currentQty + addLensStockAmount;
 
       if (selectedLensSphItem.id) {
-        // تحديث سجل موجود
         const { error } = await supabase
           .from('lens_stock')
           .update({ stock_qty: newQty })
@@ -176,12 +178,13 @@ export function ProductsInventory({ onRefreshData }: Props) {
 
         if (error) throw error;
       } else {
-        // إضافة درجة جديدة إلى المخزون إذا لم تكن موجودة سابقاً
         const { error } = await supabase
           .from('lens_stock')
           .insert({
             lens_product_id: selectedLensSphItem.lens_product_id,
             sph: selectedLensSphItem.sph,
+            cyl: selectedLensSphItem.cyl ?? null,
+            axis: selectedLensSphItem.axis ?? null,
             stock_qty: newQty,
           });
 
@@ -254,13 +257,16 @@ export function ProductsInventory({ onRefreshData }: Props) {
     
     let list = lensStocks.filter((s) => s.lens_product_id === selectedLensId);
 
-    // فلترة بالبحث (سواء كتب القياس مثل -2.50 أو غيره)
     if (lensSearchTerm.trim()) {
       const term = lensSearchTerm.trim().toLowerCase();
-      list = list.filter((item) => item.sph.toString().includes(term));
+      list = list.filter((item) => {
+        const sphMatch = item.sph.toString().includes(term);
+        const cylMatch = item.cyl ? item.cyl.toString().includes(term) : false;
+        const axisMatch = item.axis ? item.axis.toString().includes(term) : false;
+        return sphMatch || cylMatch || axisMatch;
+      });
     }
 
-    // فلترة بالحالة
     if (lensStatusFilter !== 'all') {
       list = list.filter((item) => {
         if (lensStatusFilter === 'out') return item.stock_qty <= 0;
@@ -270,7 +276,6 @@ export function ProductsInventory({ onRefreshData }: Props) {
       });
     }
 
-    // ترتيب القياسات تصاعدياً
     return list.sort((a, b) => a.sph - b.sph);
   }, [lensStocks, selectedLensId, lensSearchTerm, lensStatusFilter]);
 
@@ -571,7 +576,7 @@ export function ProductsInventory({ onRefreshData }: Props) {
               <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
               <input
                 type="text"
-                placeholder="بحث برقم القياس (مثال: -2.50)..."
+                placeholder="بحث بالقياس SPH / CYL / AXIS..."
                 value={lensSearchTerm}
                 onChange={(e) => setLensSearchTerm(e.target.value)}
                 className="w-full border border-slate-200 bg-slate-50/50 rounded-lg pr-9 pl-4 py-2 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all"
@@ -616,7 +621,7 @@ export function ProductsInventory({ onRefreshData }: Props) {
             </div>
           )}
 
-          {/* SPH Table from Supabase */}
+          {/* SPH & Toric Table from Supabase */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             {loadingLenses ? (
               <div className="p-16 text-center flex flex-col items-center justify-center gap-3">
@@ -629,6 +634,8 @@ export function ProductsInventory({ onRefreshData }: Props) {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="p-4 pr-6 text-[11px] font-bold text-slate-500 uppercase text-center">قياس القوة (SPH)</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">الانحراف (CYL)</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">المحور (AXIS)</th>
                       <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">الرصيد المتاح (العلب)</th>
                       <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">الحالة</th>
                       <th className="p-4 pl-6 text-[11px] font-bold text-slate-500 uppercase text-center">إجراء</th>
@@ -647,6 +654,16 @@ export function ProductsInventory({ onRefreshData }: Props) {
                               </span>
                             </td>
                             <td className="p-4 text-center">
+                              <span className="font-mono text-xs font-semibold text-slate-600" dir="ltr">
+                                {item.cyl != null ? item.cyl.toFixed(2) : '—'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className="font-mono text-xs font-semibold text-slate-600" dir="ltr">
+                                {item.axis != null ? `${item.axis}°` : '—'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
                               <span className="font-mono text-sm font-bold text-slate-800">{item.stock_qty} علبة</span>
                             </td>
                             <td className="p-4 text-center">
@@ -661,11 +678,13 @@ export function ProductsInventory({ onRefreshData }: Props) {
                                     id: item.id,
                                     lens_product_id: item.lens_product_id,
                                     sph: item.sph,
+                                    cyl: item.cyl,
+                                    axis: item.axis,
                                     currentQty: item.stock_qty,
                                   });
                                   setAddLensStockAmount(0);
                                 }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition"
                               >
                                 <PlusCircle className="w-3.5 h-3.5" />
                                 تغذية المخزون
@@ -676,7 +695,7 @@ export function ProductsInventory({ onRefreshData }: Props) {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={4} className="p-16 text-center">
+                        <td colSpan={6} className="p-16 text-center">
                           <div className="flex flex-col items-center justify-center gap-3">
                             <PackageOpen className="w-12 h-12 text-slate-200" />
                             <div className="text-sm font-bold text-slate-500">لا توجد سجلات مخزون مطابقة للبحث</div>
@@ -694,6 +713,96 @@ export function ProductsInventory({ onRefreshData }: Props) {
       )}
 
       {/* ======================= MODALS ======================= */}
+
+      {/* General Product Feeding Modal */}
+      {selectedProduct && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 left-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center">
+                <Box className="w-6 h-6 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">تغذية مخزون المنتج</h3>
+                <p className="text-xs text-slate-500">تحديث الكمية المتاحة في المستودع</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">اسم المنتج</span>
+                <span className="text-xs font-bold text-slate-900">{selectedProduct.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">الرمز (SKU)</span>
+                <span className="text-xs font-mono text-slate-700">{selectedProduct.sku || '—'}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddStock} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">المتاح حالياً</div>
+                  <div className="text-lg font-black text-slate-900 font-mono">
+                    {Math.max(0, (selectedProduct.stock_qty || 0) - (selectedProduct.consumed_stock || 0))} قطعة
+                  </div>
+                </div>
+                <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-3">
+                  <div className="text-[10px] text-emerald-600 mb-1">المجموع بعد التحديث</div>
+                  <div className="text-lg font-black text-emerald-700 font-mono">
+                    {Math.max(0, (selectedProduct.stock_qty || 0) - (selectedProduct.consumed_stock || 0)) + addStockAmount} قطعة
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">الكمية المضافة</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  autoFocus
+                  value={addStockAmount || ''}
+                  onChange={(e) => setAddStockAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="0"
+                  className="w-full border border-slate-300 rounded-xl p-3 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProduct(null)}
+                  className="px-5 py-2.5 border border-slate-200 rounded-xl text-slate-600 text-xs font-bold hover:bg-slate-50 transition"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || addStockAmount <= 0}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {saving ? 'جاري الحفظ...' : 'حفظ التحديث'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Lens Stock Feeding Modal */}
       {selectedLensSphItem && (
@@ -733,6 +842,14 @@ export function ProductsInventory({ onRefreshData }: Props) {
                   {selectedLensSphItem.sph > 0 ? `+${selectedLensSphItem.sph.toFixed(2)}` : selectedLensSphItem.sph.toFixed(2)}
                 </span>
               </div>
+              {selectedLensSphItem.cyl != null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">الانحراف (CYL) / المحور (AXIS)</span>
+                  <span className="text-xs font-bold text-slate-700 font-mono" dir="ltr">
+                    CYL: {selectedLensSphItem.cyl.toFixed(2)} | AXIS: {selectedLensSphItem.axis}°
+                  </span>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleAddLensStock} className="space-y-4">

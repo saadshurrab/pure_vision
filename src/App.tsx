@@ -825,14 +825,14 @@ export default function App() {
         )}
 
         {activeTab === 'inventory' && (
-  <ProductsInventory
-    lensProducts={lensProducts}
-    selectedLensId={selectedLensId}
-    onSelectLens={handleSelectLens}
-    stockMap={stockMap}
-    onRefreshData={loadData}
-  />
-)}
+          <ProductsInventory
+            lensProducts={lensProducts}
+            selectedLensId={selectedLensId}
+            onSelectLens={handleSelectLens}
+            stockMap={stockMap}
+            onRefreshData={loadData}
+          />
+        )}
 
         {/* Tab 3: سجل الطلبات */}
         {activeTab === 'orders-history' && <OrdersHistory />}
@@ -948,6 +948,10 @@ export default function App() {
               </div>
             )}
 
+            {/* تم رفع شجرة ودليل العملاء والحسابات لتكون قبل قائمة العملاء السريعة */}
+            <ClientsList clients={clients} onClientAdded={loadData} />
+
+            {/* تم إنزال قائمة العملاء السريعة لتصبح أسفل الشاشة */}
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
                 <div>
@@ -1000,8 +1004,6 @@ export default function App() {
                 )}
               </div>
             </div>
-
-            <ClientsList clients={clients} onClientAdded={loadData} />
           </div>
         )}
       </main>

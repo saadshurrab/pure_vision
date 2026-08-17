@@ -13,7 +13,6 @@ import {
   formatSPH,
   SPH_ALL,
 } from '@/lib/supabase';
-import { ProductsInventory } from '@/components/ProductsInventory';
 import { Sidebar, type TabType } from '@/components/Sidebar';
 import { ClientSelector } from '@/components/ClientSelector';
 import { SphMatrix, type CustomPrescription } from '@/components/SphMatrix';
@@ -824,16 +823,34 @@ export default function App() {
           </>
         )}
 
-        {/* Tab 2: عرض وإدارة المخزون */}
+        {/* Tab 2: عرض المخزون */}
         {activeTab === 'inventory' && (
-          <ProductsInventory
-            lensProducts={lensProducts}
-            selectedLensId={selectedLensId}
-            onSelectLens={handleSelectLens}
-            stockMap={stockMap}
-            onRefreshData={loadData}
-          />
-        )}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">📦 عرض وإدارة المخزون</h2>
+                <p className="text-xs text-slate-500 mt-1">عرض توفر الأصناف والعدسات والملحقات الطبية</p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setInventoryType('lenses')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition ${
+                    inventoryType === 'lenses' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  👁️ مخزون العدسات
+                </button>
+                <button
+                  onClick={() => setInventoryType('products')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition ${
+                    inventoryType === 'products' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  👓 المنتجات والملحقات
+                </button>
+              </div>
+            </div>
 
             {/* مخزون العدسات */}
             {inventoryType === 'lenses' && (

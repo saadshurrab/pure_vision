@@ -1,5 +1,19 @@
 import { useState, useMemo } from 'react';
 import { supabase, type Client, formatILS } from '@/lib/supabase';
+import { 
+  Search, 
+  UserPlus, 
+  CheckCircle2, 
+  X, 
+  CreditCard, 
+  Wallet, 
+  TrendingDown, 
+  Building2, 
+  Phone, 
+  MapPin, 
+  Hash, 
+  Sparkles 
+} from 'lucide-react';
 
 interface Props {
   clients: Client[];
@@ -38,7 +52,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     });
   }, [clients, searchQuery]);
 
-  // إحصائيات عامة (محسوبة على إجمالي العملاء)
+  // إحصائيات عامة
   const totalDebtSum = clients.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
   const totalPaidSum = clients.reduce((sum, c) => sum + (c.total_paid || 0), 0);
 
@@ -90,7 +104,6 @@ export function ClientsList({ clients, onClientAdded }: Props) {
       const currentBalance = showPayModal.outstanding_balance || 0;
       const currentTotalPaid = showPayModal.total_paid || 0;
 
-      // خصم من الدين وتزويد إجمالي المدفوعات التراكمي
       const newBalance = Math.max(0, currentBalance - payAmount);
       const newTotalPaid = currentTotalPaid + payAmount;
 
@@ -106,7 +119,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
 
       setShowPayModal(null);
       setPayAmount(0);
-      onClientAdded(); // تحديث الجدول
+      onClientAdded();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'حدث خطأ أثناء التسديد');
     } finally {
@@ -115,107 +128,122 @@ export function ClientsList({ clients, onClientAdded }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* بطاقات ملخص الإحصائيات */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex justify-between items-center">
+    <div className="space-y-6 dir-rtl">
+      {/* 📊 بطاقات ملخص الإحصائيات الرسمية */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="bg-white border border-rose-100 rounded-2xl p-5 shadow-xs flex justify-between items-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-1.5 h-full bg-rose-500 rounded-r-2xl" />
           <div>
-            <p className="text-sm font-medium text-red-600">إجمالي الديون القائمة (المستحقة)</p>
-            <h3 className="text-2xl font-bold text-red-700 mt-1">{formatILS(totalDebtSum)}</h3>
+            <p className="text-xs font-semibold tracking-wide text-rose-600 uppercase">إجمالي الديون القائمة (المستحقة)</p>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight">{formatILS(totalDebtSum)}</h3>
           </div>
-          <span className="text-3xl">📉</span>
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100/60">
+            <TrendingDown className="w-6 h-6" />
+          </div>
         </div>
 
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex justify-between items-center">
+        <div className="bg-white border border-emerald-100 rounded-2xl p-5 shadow-xs flex justify-between items-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-1.5 h-full bg-emerald-500 rounded-r-2xl" />
           <div>
-            <p className="text-sm font-medium text-emerald-600">إجمالي المدفوعات التراكمية (الواصل)</p>
-            <h3 className="text-2xl font-bold text-emerald-700 mt-1">{formatILS(totalPaidSum)}</h3>
+            <p className="text-xs font-semibold tracking-wide text-emerald-600 uppercase">إجمالي المدفوعات التراكمية (الواصل)</p>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-1 font-mono tracking-tight">{formatILS(totalPaidSum)}</h3>
           </div>
-          <span className="text-3xl">💰</span>
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100/60">
+            <Wallet className="w-6 h-6" />
+          </div>
         </div>
       </div>
 
-      {/* جدول العملاء */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      {/* 🏛️ جدول وسجل العملاء الرئيسي */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        {/* الترويسة وأدوات التحكم */}
+        <div className="p-5 md:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">دليل العملاء</h2>
-            <p className="text-sm text-slate-500">متابعة إجمالي الديون وإجمالي المبالغ المسددة (الواصل)</p>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-slate-500" />
+              دليل العملاء والحسابات
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">متابعة دقيقة للأرصدة القائمة وعمليات التسديد المباشرة</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* 🔍 حقل البحث المخصص */}
-            <div className="relative min-w-[260px]">
+            {/* حقل البحث */}
+            <div className="relative min-w-[280px]">
+              <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث بالاسم، الكود، الهاتف، أو المدينة..."
-                className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
+                placeholder="بحث بالاسم، الكود، الهاتف، أو المدينة..."
+                className="w-full pr-9 pl-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                   title="مسح البحث"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-xl transition-all text-xs shadow-xs active:scale-[0.98]"
             >
-              + إضافة عميل جديد
+              <UserPlus className="w-4 h-4" />
+              <span>إضافة عميل جديد</span>
             </button>
           </div>
         </div>
 
+        {/* الجدول */}
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-                <th className="p-3">الكود</th>
-                <th className="p-3">اسم العميل</th>
-                <th className="p-3">المدينة</th>
-                <th className="p-3">رقم الهاتف</th>
-                <th className="p-3">إجمالي الدين</th>
-                <th className="p-3">إجمالي المدفوعات (الواصل)</th>
-                <th className="p-3 text-center">العملية / تسديد</th>
+              <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                <th className="py-3.5 px-4"><span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5 text-slate-400" /> الكود</span></th>
+                <th className="py-3.5 px-4">اسم العميل</th>
+                <th className="py-3.5 px-4"><span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> المدينة</span></th>
+                <th className="py-3.5 px-4"><span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> الهاتف</span></th>
+                <th className="py-3.5 px-4">إجمالي الدين</th>
+                <th className="py-3.5 px-4">إجمالي المدفوعات (الواصل)</th>
+                <th className="py-3.5 px-4 text-center">الإجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
               {filteredClients.length > 0 ? (
                 filteredClients.map((c) => {
                   const hasDebt = (c.outstanding_balance || 0) > 0;
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-mono text-slate-500">{c.code}</td>
-                      <td className="p-3 font-semibold text-slate-800">{c.name}</td>
-                      <td className="p-3 text-slate-600">{c.city || '—'}</td>
-                      <td className="p-3 text-slate-600 font-mono text-xs">{c.phone || '—'}</td>
-                      <td className={`p-3 font-semibold ${hasDebt ? 'text-red-600' : 'text-slate-400'}`}>
+                    <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-slate-500 font-semibold">{c.code}</td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
+                      <td className="py-3.5 px-4 text-slate-500">{c.city || '—'}</td>
+                      <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">{c.phone || '—'}</td>
+                      <td className={`py-3.5 px-4 font-bold font-mono ${hasDebt ? 'text-rose-600' : 'text-slate-400'}`}>
                         {formatILS(c.outstanding_balance || 0)}
                       </td>
-                      <td className="p-3 font-bold text-emerald-600">
+                      <td className="py-3.5 px-4 font-bold font-mono text-emerald-600">
                         {formatILS(c.total_paid || 0)}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         {hasDebt ? (
                           <button
                             onClick={() => {
                               setShowPayModal(c);
                               setPayAmount(c.outstanding_balance);
                             }}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1 mx-auto"
+                            className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all mx-auto active:scale-[0.97]"
                           >
-                            ✅ 💰 تسديد (واصل)
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>تسديد دفعة</span>
                           </button>
                         ) : (
-                          <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
-                            خالي من الديون ✨
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50/80 px-2.5 py-1 rounded-md border border-emerald-100 font-medium">
+                            <Sparkles className="w-3 h-3 text-emerald-500" />
+                            حساب مخلص
                           </span>
                         )}
                       </td>
@@ -224,8 +252,8 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-400">
-                    {searchQuery ? `لا يوجد نتائج مطابقة للبحث عن "${searchQuery}"` : 'لا يوجد عملاء في القائمة.'}
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-normal">
+                    {searchQuery ? `لا توجد نتائج مطابقة لـ "${searchQuery}"` : 'لا يوجد عملاء مسجلين حالياً.'}
                   </td>
                 </tr>
               )}
@@ -234,25 +262,43 @@ export function ClientsList({ clients, onClientAdded }: Props) {
         </div>
       </div>
 
-      {/* نافذة تسديد مبلغ (واصل) */}
+      {/* 💳 نافذة تسجيل دفعة تسديد (Modal) */}
       {showPayModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">💰</span>
-              <h3 className="text-lg font-bold text-slate-800">تسجيل دفعة واصل</h3>
-            </div>
-            <p className="text-sm text-slate-600 mb-4">
-              العميل: <strong className="text-slate-800">{showPayModal.name}</strong>
-              <br />
-              الدين الحالي: <strong className="text-red-600">{formatILS(showPayModal.outstanding_balance)}</strong>
-            </p>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setShowPayModal(null)}
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-            {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg mb-4">{error}</div>}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">تسجيل دفعة مسددة</h3>
+                <p className="text-xs text-slate-500">إدخال مبلغ جديد لحساب العميل</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1 mb-4">
+              <div className="flex justify-between text-slate-600">
+                <span>اسم العميل:</span>
+                <strong className="text-slate-900">{showPayModal.name}</strong>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>الرصيد المتبقي المستحق:</span>
+                <strong className="text-rose-600 font-mono">{formatILS(showPayModal.outstanding_balance)}</strong>
+              </div>
+            </div>
+
+            {error && <div className="p-3 bg-rose-50 text-rose-600 text-xs rounded-xl mb-4 border border-rose-100">{error}</div>}
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">المبلغ الواصل (₪)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">المبلغ الواصل (₪)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -261,39 +307,40 @@ export function ClientsList({ clients, onClientAdded }: Props) {
                   max={showPayModal.outstanding_balance}
                   value={payAmount}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-base font-semibold text-emerald-700"
+                  className="w-full border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-2.5 text-base font-mono font-bold text-slate-900 outline-none transition-all"
                 />
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 text-xs space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>الدين المتبقي:</span>
-                  <span className="font-bold text-slate-800">
+                  <span>الدين بعد الخصم:</span>
+                  <span className="font-bold font-mono text-slate-900">
                     {formatILS(Math.max(0, showPayModal.outstanding_balance - payAmount))}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>إجمالي المدفوعات الجديد:</span>
-                  <span className="font-bold text-emerald-600">
+                  <span className="font-bold font-mono text-emerald-600">
                     {formatILS((showPayModal.total_paid || 0) + payAmount)}
                   </span>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 space-x-reverse pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowPayModal(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 text-xs font-medium transition-all"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium shadow-xs transition-all disabled:opacity-50"
                 >
-                  {saving ? 'جاري التأكيد...' : 'تأكيد التسديد ✅'}
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{saving ? 'جاري التأكيد...' : 'تأكيد العملية'}</span>
                 </button>
               </div>
             </form>
@@ -301,66 +348,89 @@ export function ClientsList({ clients, onClientAdded }: Props) {
         </div>
       )}
 
-      {/* نافذة إضافة عميل جديد */}
+      {/* 👤 نافذة إضافة عميل جديد (Modal) */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">إضافة عميل جديد</h3>
-            {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg mb-4">{error}</div>}
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setShowAddModal(false)}
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl border border-slate-200">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">إضافة عميل جديد</h3>
+                <p className="text-xs text-slate-500">سجل بيانات العملاء والمستحقات المباشرة</p>
+              </div>
+            </div>
+
+            {error && <div className="p-3 bg-rose-50 text-rose-600 text-xs rounded-xl mb-4 border border-rose-100">{error}</div>}
+
             <form onSubmit={handleAddClient} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">اسم العميل/المحل</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">اسم العميل / الشركة</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
+                  placeholder="أدخل اسم العميل كاملاً"
+                  className="w-full border border-slate-200 focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 rounded-xl p-2.5 text-xs text-slate-900 outline-none transition-all"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">كود العميل</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">كود العميل التعريفى</label>
                 <input
                   type="text"
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
                   placeholder="مثال: CLT-105"
+                  className="w-full border border-slate-200 focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 rounded-xl p-2.5 text-xs font-mono text-slate-900 outline-none transition-all"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">المدينة</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">المدينة</label>
                   <input
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
+                    placeholder="اسم المدينة"
+                    className="w-full border border-slate-200 focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 rounded-xl p-2.5 text-xs text-slate-900 outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الهاتف</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">رقم الهاتف</label>
                   <input
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
+                    placeholder="059xxxxxxx"
+                    className="w-full border border-slate-200 focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 rounded-xl p-2.5 text-xs font-mono text-slate-900 outline-none transition-all"
                   />
                 </div>
               </div>
-              <div className="flex justify-end space-x-3 space-x-reverse pt-4">
+
+              <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-600 text-sm"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 text-xs font-medium transition-all"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-medium"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium shadow-xs transition-all disabled:opacity-50"
                 >
                   {saving ? 'جاري الحفظ...' : 'حفظ العميل'}
                 </button>

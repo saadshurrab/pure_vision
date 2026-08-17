@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { CheckCircle2, X, Eye, Droplets, Glasses, Boxes, Printer, Sparkles, CreditCard, AlertCircle } from 'lucide-react';
 import type { Client, CartItem, PaymentMethod, InvoiceData } from '@/lib/supabase';
-import { isLensItem, formatILS, formatSPH } from '@/lib/supabase';
+import { supabase, isLensItem, formatILS, formatSPH } from '@/lib/supabase';
 
 export interface OrderSummary {
   orderId: string;
@@ -38,6 +38,79 @@ function categoryIcon(cat: string) {
 }
 
 export function OrderConfirmationModal({ summary, onClose, onPrint }: Props) {
+  // منع تكرار الخصم لنفس الطلب
+  const hasDeductedRef = useRef<string | null>(null);
+
+  // دالة خصم الكميات من قاعدة البيانات Supabase عند تأكيد الطلب
+  useEffect(() => {
+    if (!summary || summary.status !== 'confirmed') return;
+    
+    // إذا تم الخصم لهذا الطلب من قبل، نمنع التكرار
+    if (hasDeductedRef.current === summary.orderId) return;
+
+    async function deductInventory() {
+      try {
+        for (const item of summary!.items) {
+          if (isLensItem(item)) {
+            // === 1. خصم مخزون العدسات من جدول lens_stock ===
+            if (!item.lensProductId) continue;
+
+            let query = supabase
+              .from('lens_stock')
+              .select('id, stock_qty')
+              .eq('lens_product_id', item.lensProductId)
+              .eq('sph', item.sph);
+
+            if (item.cyl != null) {
+              query = query.eq('cyl', item.cyl);
+            }
+            if (item.axis != null) {
+              query = query.eq('axis', item.axis);
+            }
+
+            const { data: lensStockData, error: lensFetchErr } = await query.maybeSingle();
+
+            if (!lensFetchErr && lensStockData) {
+              const currentStock = lensStockData.stock_qty || 0;
+              const newStock = Math.max(0, currentStock - item.quantity);
+
+              await supabase
+                .from('lens_stock')
+                .update({ stock_qty: newStock })
+                .eq('id', lensStockData.id);
+            }
+          } else {
+            // === 2. خصم المنتجات العادية والإكسسوارات من جدول products ===
+            const productId = item.id;
+            if (!productId) continue;
+
+            const { data: prodData, error: prodFetchErr } = await supabase
+              .from('products')
+              .select('consumed_stock, stock_qty')
+              .eq('id', productId)
+              .maybeSingle();
+
+            if (!prodFetchErr && prodData) {
+              const currentConsumed = prodData.consumed_stock || 0;
+              const newConsumed = currentConsumed + item.quantity;
+
+              await supabase
+                .from('products')
+                .update({ consumed_stock: newConsumed })
+                .eq('id', productId);
+            }
+          }
+        }
+        hasDeductedRef.current = summary!.orderId;
+        console.log('تم خصم عناصر الطلب من المخزون بنجاح!');
+      } catch (err) {
+        console.error('حدث خطأ أثناء خصم المخزون:', err);
+      }
+    }
+
+    deductInventory();
+  }, [summary]);
+
   useEffect(() => {
     if (!summary) return;
     const handler = (e: KeyboardEvent) => {

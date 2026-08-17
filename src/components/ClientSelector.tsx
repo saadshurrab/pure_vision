@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   UserCheck,
-  CreditCard
+  CreditCard,
+  Building
 } from 'lucide-react';
 import type { Client } from '@/lib/supabase';
 import { formatILS } from '@/lib/supabase';
@@ -32,10 +33,10 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
     [clients, selectedClientId]
   );
 
-  // فلترة العملاء
+  // فلترة قائمة العملاء بناءً على المدخلات
   const filteredClients = useMemo(() => {
     if (!searchTerm.trim()) return clients;
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
     return clients.filter(
       (c) =>
         c.name?.toLowerCase().includes(term) ||
@@ -45,7 +46,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
     );
   }, [clients, searchTerm]);
 
-  // دالة إنشاء طلب جديد والتمرير
+  // التمرير والسلوك عند اختيار إنشاء طلب
   const handleCreateOrder = (clientId: string) => {
     if (onCreateOrder) {
       onCreateOrder(clientId);
@@ -63,24 +64,25 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
   };
 
   return (
-    <div className="w-full space-y-4 font-sans text-slate-800" dir="rtl">
+    <div className="w-full space-y-4 font-sans text-slate-800 dir-rtl" dir="rtl">
       
-      {/* 🔍 1. شريط البحث والتصفية */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2">
+      {/* 🔍 1. شريط البحث الموحد */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2">
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="ابحث باسم المركز/العميل، الكود، المدينة، أو رقم الهاتف..."
-            className="w-full pr-10 pl-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
+            placeholder="ابحث باسم المركز أو العميل، الكود، المدينة، أو رقم الهاتف..."
+            className="w-full pr-10 pl-10 py-2.5 bg-slate-50/70 border border-slate-200/70 rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 transition-all"
           />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute left-3 p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
+              className="absolute left-3 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              title="مسح البحث"
             >
               <X className="w-4 h-4" />
             </button>
@@ -88,11 +90,11 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
         </div>
       </div>
 
-      {/* 2. جسم الواجهة الرئيسي */}
+      {/* 2. قسم المحتوى الرئيسي */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
-        {/* 📜 القسم الأيمن: قائمة المراكز والعملاء */}
-        <div className="lg:col-span-6 space-y-2 max-h-[520px] overflow-y-auto pr-0.5 pl-1">
+        {/* 📜 الجانب الأيمن: قائمة نتائج البحث والعملاء */}
+        <div className="lg:col-span-6 space-y-2 max-h-[540px] overflow-y-auto pr-0.5 pl-1 custom-scrollbar">
           {filteredClients.length > 0 ? (
             filteredClients.map((c) => {
               const isSelected = c.id === selectedClientId;
@@ -102,17 +104,17 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                 <div
                   key={c.id}
                   onClick={() => onSelect(c.id)}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  className={`p-3.5 rounded-2xl border transition-all duration-150 cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected
-                      ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
-                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 text-slate-800'
+                      ? 'bg-slate-900 border-slate-900 text-white shadow-md'
+                      : 'bg-white border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/60 text-slate-800'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition ${
                         isSelected
-                          ? 'bg-slate-800 text-white border border-slate-700'
+                          ? 'bg-slate-800 text-white border border-slate-700/60'
                           : 'bg-slate-100 text-slate-600'
                       }`}
                     >
@@ -124,12 +126,13 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                         <h4 className={`font-bold text-xs sm:text-sm truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
                           {c.name}
                         </h4>
-                        <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md font-semibold ${
                           isSelected ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-500'
                         }`}>
                           {c.code}
                         </span>
                       </div>
+
                       <div className={`flex items-center gap-3 text-[11px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                         {c.phone && (
                           <span className="flex items-center gap-1 font-mono">
@@ -151,7 +154,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                     {hasDebt ? (
                       <div className={`flex flex-col items-end px-2.5 py-1 rounded-lg border ${
                         isSelected 
-                          ? 'bg-rose-950/50 border-rose-800 text-rose-300' 
+                          ? 'bg-rose-950/50 border-rose-800 text-rose-200' 
                           : 'bg-rose-50 border-rose-100 text-rose-700'
                       }`}>
                         <span className="text-[10px] font-bold flex items-center gap-1">
@@ -178,69 +181,70 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
               );
             })
           ) : (
-            <div className="p-12 text-center text-xs text-slate-500 bg-white rounded-xl border border-dashed border-slate-200">
-              لا يوجد عميل يطابق معايير البحث الحالية.
+            <div className="p-10 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+              لا يطابق بحثك أي عميل أو مركز مسجل حالياً.
             </div>
           )}
         </div>
 
-        {/* 🏢 القسم الأيسر: بطاقة التفاصيل والمعاينة الرسمية */}
-        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm sticky top-4">
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 text-slate-900 font-bold text-sm">
+        {/* 🏢 الجانب الأيسر: بطاقة التفاصيل والمعاينة الرسمية */}
+        <div className="lg:col-span-6 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs sticky top-4">
+          <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-100 text-slate-900 font-bold text-sm">
             <span className="flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-slate-700" />
-              بيانات العميل المحدد
+              بطاقة بيانات العميل
             </span>
             {selected && (
-              <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
-                ID: {selected.code}
+              <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 font-semibold">
+                كود الحساب: {selected.code}
               </span>
             )}
           </div>
 
           {selected ? (
             <div className="space-y-4">
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
-                  <Building2 className="w-6 h-6" />
+              <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/60 flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Building className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 text-base truncate">
                     {selected.name}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    {selected.city || 'المدينة غير محددة'}
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>{selected.city || 'العنوان غير محدد'}</span>
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="p-3 rounded-lg border border-slate-100 bg-white flex items-center justify-between">
+                <div className="p-3 rounded-xl border border-slate-100 bg-white flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                     <Phone className="w-4 h-4 text-slate-400" />
-                    رقم الهاتف
+                    رقم التواصل
                   </span>
                   <span className="font-bold text-xs sm:text-sm text-slate-800 font-mono">
                     {selected.phone || 'غير مسجل'}
                   </span>
                 </div>
 
-                <div className="p-3 rounded-lg border border-slate-100 bg-white flex items-center justify-between">
+                <div className="p-3 rounded-xl border border-slate-100 bg-white flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-slate-400" />
                     حالة الحساب
                   </span>
-                  <span className="font-bold text-xs text-slate-800">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     نشط
                   </span>
                 </div>
 
                 <div
-                  className={`p-3.5 rounded-lg border flex items-center justify-between ${
+                  className={`p-3.5 rounded-xl border flex items-center justify-between transition-colors ${
                     selected.outstanding_balance > 0
-                      ? 'bg-rose-50/60 border-rose-200 text-rose-900'
-                      : 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                      ? 'bg-rose-50/50 border-rose-200/80 text-rose-900'
+                      : 'bg-emerald-50/50 border-emerald-200/80 text-emerald-900'
                   }`}
                 >
                   <span className="text-xs font-bold flex items-center gap-2">
@@ -250,7 +254,7 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
                   <span className="font-bold text-sm sm:text-base font-mono">
                     {selected.outstanding_balance > 0
                       ? formatILS(selected.outstanding_balance)
-                      : 'لا توجد مستحقات'}
+                      : '0.00 ₪'}
                   </span>
                 </div>
               </div>
@@ -258,19 +262,21 @@ export function ClientSelector({ clients, selectedClientId, onSelect, onCreateOr
               <button
                 type="button"
                 onClick={() => handleCreateOrder(selected.id)}
-                className="w-full mt-3 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-lg transition shadow-sm flex items-center justify-center gap-2 active:scale-[0.99]"
+                className="w-full mt-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-xs flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>متابعة إنشاء طلب للعميل</span>
+                <span>متابعة إنشاء طلب جديد</span>
               </button>
             </div>
           ) : (
             <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
-              <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+              <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 mb-1">
                 <Building2 className="w-6 h-6" />
               </div>
               <p className="text-sm font-bold text-slate-700">لم يتم تحديد عميل</p>
-              <p className="text-xs text-slate-400">حدد مركزاً أو عميلاً من القائمة الجانبية لعرض بياناته والبدء بالطلب.</p>
+              <p className="text-xs text-slate-400 max-w-xs">
+                قم باختيار أحد العملاء من القائمة الجانبية لاستعراض بياناته وإنشاء طلب جديد.
+              </p>
             </div>
           )}
         </div>

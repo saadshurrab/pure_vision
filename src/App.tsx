@@ -123,10 +123,6 @@ export default function App() {
   // 🔍 حالة البحث في قائمة العملاء
   const [clientSearchQuery, setClientSearchQuery] = useState('');
 
-  // إعدادات عرض المخزون
-  const [inventoryType, setInventoryType] = useState<'lenses' | 'products'>('lenses');
-  const [inventoryCategory, setInventoryCategory] = useState<string>('');
-
   // 🔄 جلب البيانات من Supabase
   const loadData = useCallback(async () => {
     try {
@@ -161,9 +157,6 @@ export default function App() {
           setSelectedBC(first.bc);
           setSelectedDIA(first.dia);
         }
-        if (!inventoryCategory) {
-          setInventoryCategory(l.data[0].id);
-        }
         if (!selectedReturnLensId) {
           setSelectedReturnLensId(l.data[0].id);
         }
@@ -177,7 +170,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [selectedLensId, inventoryCategory, selectedReturnLensId, selectedReturnProductId]);
+  }, [selectedLensId, selectedReturnLensId, selectedReturnProductId]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -322,8 +315,10 @@ export default function App() {
     setCustomPrescription(null);
   }
 
+  // ✅ تعديل منطقي مهم: تخصيم واستقطاع المخزون الفعلي المتاح محلياً فور الإضافة للسلة
   function addProduct(p: Product, qty: number) {
     if (qty <= 0) return;
+
     setCart((prev) => {
       const idx = prev.findIndex(
         (i) => !('lensProductId' in i) && (i as CartProductItem).productId === p.id
@@ -346,20 +341,71 @@ export default function App() {
         },
       ];
     });
+
+    // تحديث رقم المخزون في الـ State فوراً لينعكس على كارت المنتج لحظياً
+    setProducts((prevProducts) =>
+      prevProducts.map((prod) =>
+        prod.id === p.id
+          ? { ...prod, consumed_stock: (prod.consumed_stock || 0) + qty }
+          : prod
+      )
+    );
   }
 
+  // ✅ تعديل كمية المنتج في السلة وإعادة فارق المخزون
   function updateCartQty(index: number, qty: number) {
-    setCart((prev) => {
-      if (qty <= 0) return prev.filter((_, i) => i !== index);
-      return prev.map((it, i) => (i === index ? { ...it, quantity: qty } : it));
+    setCart((prevCart) => {
+      const item = prevCart[index];
+      if (!item) return prevCart;
+
+      if (!('lensProductId' in item)) {
+        const diff = qty - item.quantity;
+        setProducts((prevProducts) =>
+          prevProducts.map((p) =>
+            p.id === item.productId
+              ? { ...p, consumed_stock: Math.max(0, (p.consumed_stock || 0) + diff) }
+              : p
+          )
+        );
+      }
+
+      if (qty <= 0) return prevCart.filter((_, i) => i !== index);
+      return prevCart.map((it, i) => (i === index ? { ...it, quantity: qty } : it));
     });
   }
 
+  // ✅ حذف المنتج من السلة وإرجاع كميته كاملة للمخزون
   function removeCartItem(index: number) {
-    setCart((prev) => prev.filter((_, i) => i !== index));
+    setCart((prevCart) => {
+      const item = prevCart[index];
+      if (item && !('lensProductId' in item)) {
+        setProducts((prevProducts) =>
+          prevProducts.map((p) =>
+            p.id === item.productId
+              ? { ...p, consumed_stock: Math.max(0, (p.consumed_stock || 0) - item.quantity) }
+              : p
+          )
+        );
+      }
+      return prevCart.filter((_, i) => i !== index);
+    });
   }
 
+  // ✅ إفراغ السلة بالكامل وإعادة تزامن المخزون المحلي
   function clearCart() {
+    // إرجاع كافة الكميات المحجوزة للمنتجات العادية عند إفراغ السلة
+    cart.forEach((item) => {
+      if (!('lensProductId' in item)) {
+        setProducts((prevProducts) =>
+          prevProducts.map((p) =>
+            p.id === item.productId
+              ? { ...p, consumed_stock: Math.max(0, (p.consumed_stock || 0) - item.quantity) }
+              : p
+          )
+        );
+      }
+    });
+
     setCart([]);
     setLensQuantities({});
     setDiscountPercent(0);
@@ -465,7 +511,7 @@ export default function App() {
                 const currentConsumed = targetProduct.consumed_stock || 0;
                 await supabase
                   .from('products')
-                  .update({ consumed_stock: currentConsumed + item.quantity })
+                  .update({ consumed_stock: currentConsumed })
                   .eq('id', item.productId);
               }
             }
@@ -824,6 +870,7 @@ export default function App() {
           </>
         )}
 
+        {/* Tab 2: جرد المخزون */}
         {activeTab === 'inventory' && (
           <ProductsInventory
             lensProducts={lensProducts}
@@ -948,10 +995,8 @@ export default function App() {
               </div>
             )}
 
-            {/* تم رفع شجرة ودليل العملاء والحسابات لتكون قبل قائمة العملاء السريعة */}
             <ClientsList clients={clients} onClientAdded={loadData} />
 
-            {/* تم إنزال قائمة العملاء السريعة لتصبح أسفل الشاشة */}
             <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
                 <div>

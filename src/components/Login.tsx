@@ -12,7 +12,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   // 🔑 كلمة المرور المطلوبة
-  const SECRET_PASSWORD = '2864341'; 
+  const SECRET_PASSWORD = '0567816666'; 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

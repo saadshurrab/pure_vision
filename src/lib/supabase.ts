@@ -1,17 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { neon } from '@neondatabase/serverless';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+// ── إعدادات الاتصال بـ Neon PostgreSQL ──
+const databaseUrl = import.meta.env.VITE_NEON_DATABASE_URL as string;
 
-// ── إعدادات الاتصال بـ Supabase مع زيادة الأمان للجلسات ──
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // 💡 الحفظ في sessionStorage يضمن تسجيل الخروج التلقائي بمجرد إغلاق التبويب/المتصفح
-    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+if (!databaseUrl) {
+  console.warn('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة .env');
+}
+
+// محرك استعلامات Neon SQL المباشر
+export const sql = neon(databaseUrl || '');
 
 // ── Currency helper ──
 export const CURRENCY_SYMBOL = '₪';
@@ -96,24 +93,24 @@ export interface Client {
   code: string;
   city?: string;
   phone?: string;
-  outstanding_balance: number; // إجمالي الدين الحالي/الرصيد النهائي
-  total_paid: number;          // إجمالي الدائن (الواصل)
+  outstanding_balance: number;
+  total_paid: number;
   active: boolean;
 }
 
-// ── حركة كشف حساب الزبون (الجديد ✨ المطابق للدفتري والملف) ──
+// ── حركة كشف حساب الزبون ──
 export interface ClientTransaction {
   id: string;
   client_id: string;
   invoice_number: string | null;
   transaction_date: string;
-  debit: number;          // مدين (مطلوبات / طلبيات)
-  credit: number;         // دائن (مقبوضات / واصل)
-  discount: number;       // الخصم
-  return_amount: number;  // قيمة المرجع
-  balance: number;        // رصيد الحركة
-  running_balance: number;// الرصيد التراكمي
-  description: string;    // البيان (طلبية، دفعة، رصيد سابق...)
+  debit: number;
+  credit: number;
+  discount: number;
+  return_amount: number;
+  balance: number;
+  running_balance: number;
+  description: string;
   created_at: string;
 }
 
@@ -121,11 +118,11 @@ export interface ClientTransaction {
 export interface ClientSummary {
   client_id: string;
   name: string;
-  total_debit: number;    // إجمالي المدين
-  total_credit: number;   // إجمالي الدائن
-  total_discount: number; // إجمالي الخصم
-  total_return: number;   // إجمالي المرجع
-  final_balance: number;  // الرصيد النهائي المتبقي
+  total_debit: number;
+  total_credit: number;
+  total_discount: number;
+  total_return: number;
+  final_balance: number;
 }
 
 export interface LensProduct {
@@ -150,8 +147,8 @@ export interface Product {
   category: 'solution' | 'frame' | 'accessory';
   sku: string | null;
   unit_price: number;
-  stock_qty: number;       // الكمية الكلية المسجلة للمنتج
-  consumed_stock: number;  // الكمية المستهلكة (المباعة)
+  stock_qty: number;
+  consumed_stock: number;
   active: boolean;
 }
 

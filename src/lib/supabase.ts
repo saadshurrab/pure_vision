@@ -1,14 +1,48 @@
-import { neon } from '@neondatabase/serverless';
-
-// ── إعدادات الاتصال بـ Neon PostgreSQL ──
+// ── إعدادات الاتصال بـ Neon عبر HTTP API المباشر (متوافق 100% مع المتصفح و Render) ──
 const databaseUrl = import.meta.env.VITE_NEON_DATABASE_URL as string;
 
-if (!databaseUrl) {
-  console.warn('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة .env');
-}
+// دالة تنفيذ استعلامات SQL المباشرة بدون أي حزم خارجية معقدة
+export async function sql(strings: TemplateStringsArray, ...values: any[]) {
+  if (!databaseUrl) {
+    console.error('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة .env');
+    return [];
+  }
 
-// محرك استعلامات Neon SQL المباشر
-export const sql = neon(databaseUrl || '');
+  // دمج الاستعلام والمحليّات
+  let query = strings[0];
+  for (let i = 0; i < values.length; i++) {
+    const val = values[i];
+    const formattedVal = typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
+    query += formattedVal + strings[i + 1];
+  }
+
+  try {
+    // تحويل رابط الاتصال إلى رابط HTTP API
+    const match = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^/]+)\/(.+)/);
+    if (!match) throw new Error('رابط قاعدة البيانات غير صحيح');
+
+    const [, user, password, host, dbName] = match;
+    const httpUrl = `https://${host}/sql`;
+
+    const response = await fetch(httpUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${password}`,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const result = await response.json();
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    return result.rows || [];
+  } catch (err) {
+    console.error('خطأ في استعلام SQL:', err);
+    throw err;
+  }
+}
 
 // ── Currency helper ──
 export const CURRENCY_SYMBOL = '₪';
@@ -21,7 +55,6 @@ export function formatILS(amount: number): string {
 // ── SPH sign selector ──
 export type SphSign = 'minus' | 'plus';
 
-// ── SPH values: Negative -0.50 to -12.00 in 0.25 steps (46 values) ──
 export const SPH_NEGATIVE: number[] = (() => {
   const vals: number[] = [];
   for (let v = -0.5; v >= -12.001; v -= 0.25) {
@@ -30,7 +63,6 @@ export const SPH_NEGATIVE: number[] = (() => {
   return vals;
 })();
 
-// ── SPH values: Positive +0.50 to +8.00 in 0.25 steps (31 values) ──
 export const SPH_POSITIVE: number[] = (() => {
   const vals: number[] = [];
   for (let v = 0.5; v <= 8.001; v += 0.25) {
@@ -39,10 +71,8 @@ export const SPH_POSITIVE: number[] = (() => {
   return vals;
 })();
 
-// ── All standard SPH values (for syncing cart) ──
 export const SPH_ALL: number[] = [...SPH_NEGATIVE, ...SPH_POSITIVE];
 
-// ── CYL values for astigmatism/toric: -0.75 to -5.00 in 0.25 steps ──
 export const CYL_VALUES: number[] = (() => {
   const vals: number[] = [];
   for (let v = -0.75; v >= -5.001; v -= 0.25) {
@@ -51,7 +81,6 @@ export const CYL_VALUES: number[] = (() => {
   return vals;
 })();
 
-// ── AXIS values: 10° to 180° in 10° steps ──
 export const AXIS_VALUES: number[] = (() => {
   const vals: number[] = [];
   for (let v = 10; v <= 180; v += 10) {
@@ -60,7 +89,6 @@ export const AXIS_VALUES: number[] = (() => {
   return vals;
 })();
 
-// ── Custom SPH limits ──
 export const CUSTOM_SPH_MIN = -30;
 export const CUSTOM_SPH_MAX = 20;
 
@@ -72,11 +100,9 @@ export function formatSPH(sph: number): string {
   return sph > 0 ? `+${sph.toFixed(2)}` : sph.toFixed(2);
 }
 
-// ── Available BC and DIA options ──
 export const BC_OPTIONS = ['8.4', '8.5', '8.6', '8.7', '8.8'];
 export const DIA_OPTIONS = ['14.0', '14.2', '14.5'];
 
-// ── Payment methods ──
 export type PaymentMethod = 'cash' | 'credit' | 'check';
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
@@ -85,7 +111,6 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: strin
   { value: 'check', label: 'شيك', icon: 'check' },
 ];
 
-// ── Types ──
 export interface Client {
   id: string;
   created_at: string;
@@ -98,7 +123,6 @@ export interface Client {
   active: boolean;
 }
 
-// ── حركة كشف حساب الزبون ──
 export interface ClientTransaction {
   id: string;
   client_id: string;
@@ -114,7 +138,6 @@ export interface ClientTransaction {
   created_at: string;
 }
 
-// ── ملخص كشف حساب الزبون الشامل ──
 export interface ClientSummary {
   client_id: string;
   name: string;
@@ -177,7 +200,6 @@ export interface OrderItemRow {
   line_total: number;
 }
 
-// ── Cart item types ──
 export interface CartLensItem {
   lensProductId: string;
   brand: string;
@@ -206,7 +228,6 @@ export function isLensItem(item: CartItem): item is CartLensItem {
   return (item as CartLensItem).lensProductId !== undefined;
 }
 
-// ── Invoice data for printing ──
 export interface InvoiceData {
   invoiceNumber: string;
   orderId: string;

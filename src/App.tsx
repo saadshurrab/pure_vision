@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
-  supabase,
+  sql,
   type Client,
   type LensProduct,
   type LensStock,
@@ -25,7 +25,7 @@ import { OrdersHistory } from '@/components/OrdersHistory';
 import { Login } from '@/components/Login';
 import { DashboardHome } from '@/components/DashboardHome';
 
-// ⏱️ مهلة الخمول بالملي ثانية (مثلاً: 60000 = دقيقة واحدة)
+// ⏱️ مهلة الخمول بالملي ثانية
 const INACTIVITY_TIMEOUT = 300 * 1000;
 
 export default function App() {
@@ -36,7 +36,7 @@ export default function App() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🚪 دالة تسجيل الخروج الفعالة والأمنة بدون إعادة تحميل إجباري للصفحة
+  // 🚪 دالة تسجيل الخروج
   const handleLogout = useCallback(async (e?: React.MouseEvent) => {
     if (e && e.preventDefault) {
       e.preventDefault();
@@ -45,7 +45,6 @@ export default function App() {
       if (timerRef.current) clearTimeout(timerRef.current);
       sessionStorage.removeItem('pvo_authenticated');
       localStorage.removeItem('pvo_authenticated');
-      await supabase.auth.signOut();
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
@@ -123,47 +122,37 @@ export default function App() {
   // 🔍 حالة البحث في قائمة العملاء
   const [clientSearchQuery, setClientSearchQuery] = useState('');
 
-  // 🔄 جلب البيانات من Supabase
+  // 🔄 جلب البيانات من Neon Database
   const loadData = useCallback(async () => {
     try {
-      const [c, l, p, ls, ord] = await Promise.all([
-        supabase.from('clients').select('*').eq('active', true).order('name'),
-        supabase.from('lens_products').select('*').eq('active', true).order('brand'),
-        supabase.from('products').select('*').eq('active', true).order('category, name'),
-        supabase.from('lens_stock').select('*'),
-        supabase.from('orders').select('*, clients(name)').order('created_at', { ascending: false }),
+      const [cData, lData, pData, lsData, ordData] = await Promise.all([
+        sql`SELECT * FROM clients WHERE active = true ORDER BY name ASC`,
+        sql`SELECT * FROM lens_products WHERE active = true ORDER BY brand ASC`,
+        sql`SELECT * FROM products WHERE active = true ORDER BY category, name ASC`,
+        sql`SELECT * FROM lens_stock`,
+        sql`SELECT o.*, c.name as client_name FROM orders o LEFT JOIN clients c ON o.client_id = c.id ORDER BY o.created_at DESC`,
       ]);
 
-      if (c.error) throw c.error;
-      if (l.error) throw l.error;
-      if (p.error) throw p.error;
-      if (ls.error) throw ls.error;
+      setClients(cData || []);
+      setLensProducts(lData || []);
+      setProducts(pData || []);
+      setLensStock(lsData || []);
+      setOrders(ordData || []);
 
-      setClients(c.data || []);
-      setLensProducts(l.data || []);
-      setProducts(p.data || []);
-      setLensStock(ls.data || []);
-
-      const formattedOrders = (ord.data || []).map((o: any) => ({
-        ...o,
-        client_name: o.clients?.name || o.client_name || null,
-      }));
-      setOrders(formattedOrders);
-
-      if (l.data && l.data.length > 0) {
+      if (lData && lData.length > 0) {
         if (!selectedLensId) {
-          const first = l.data[0];
+          const first = lData[0];
           setSelectedLensId(first.id);
           setSelectedBC(first.bc);
           setSelectedDIA(first.dia);
         }
         if (!selectedReturnLensId) {
-          setSelectedReturnLensId(l.data[0].id);
+          setSelectedReturnLensId(lData[0].id);
         }
       }
 
-      if (p.data && p.data.length > 0 && !selectedReturnProductId) {
-        setSelectedReturnProductId(p.data[0].id);
+      if (pData && pData.length > 0 && !selectedReturnProductId) {
+        setSelectedReturnProductId(pData[0].id);
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'تعذر تحميل البيانات');
@@ -423,10 +412,7 @@ export default function App() {
     [subtotal, discountAmount]
   );
 
-  const availableCredit = selectedClient
-    ? selectedClient.credit_limit - selectedClient.outstanding_balance
-    : 0;
-
+  const availableCredit = 100000;
   const creditExceeded = false;
 
   const persistOrder = useCallback(
@@ -443,82 +429,56 @@ export default function App() {
       setSaving(true);
       setSaveMsg(null);
       try {
-        const { data: order, error: oe } = await supabase
-          .from('orders')
-          .insert({
-            client_id: selectedClient.id,
-            subtotal: Math.round(subtotal * 100) / 100,
-            discount_percent: discountPercent,
-            discount_amount: discountAmount,
-            total,
-            status,
-            payment_method: paymentMethod,
-            notes: notes || null,
-          })
-          .select()
-          .single();
+        const sub = Math.round(subtotal * 100) / 100;
+        const insertedOrders = await sql`
+          INSERT INTO orders (client_id, subtotal, discount_percent, discount_amount, total, status, payment_method, notes)
+          VALUES (${selectedClient.id}, ${sub}, ${discountPercent}, ${discountAmount}, ${total}, ${status}, ${paymentMethod}, ${notes || null})
+          RETURNING id
+        `;
 
-        if (oe) throw oe;
+        const orderId = insertedOrders[0]?.id;
+        if (!orderId) throw new Error('فشل إنشاء إدخال الطلب');
 
-        const items = cart.map((i) =>
-          'lensProductId' in i
-            ? {
-                order_id: order.id,
-                item_type: 'lens',
-                lens_product_id: i.lensProductId,
-                sph: i.sph,
-                cyl: i.cyl,
-                axis: i.axis,
-                quantity: i.quantity,
-                unit_price: i.unitPrice,
-                line_total: Math.round(i.unitPrice * i.quantity * 100) / 100,
-              }
-            : {
-                order_id: order.id,
-                item_type: 'product',
-                product_id: i.productId,
-                sph: null,
-                cyl: null,
-                axis: null,
-                quantity: i.quantity,
-                unit_price: i.unitPrice,
-                line_total: Math.round(i.unitPrice * i.quantity * 100) / 100,
-              }
-        );
-
-        const { error: ie } = await supabase.from('order_items').insert(items);
-        if (ie) throw ie;
+        for (const i of cart) {
+          const lineTotal = Math.round(i.unitPrice * i.quantity * 100) / 100;
+          if ('lensProductId' in i) {
+            await sql`
+              INSERT INTO order_items (order_id, item_type, lens_product_id, sph, cyl, axis, quantity, unit_price, line_total)
+              VALUES (${orderId}, 'lens', ${i.lensProductId}, ${i.sph}, ${i.cyl}, ${i.axis}, ${i.quantity}, ${i.unitPrice}, ${lineTotal})
+            `;
+          } else {
+            await sql`
+              INSERT INTO order_items (order_id, item_type, product_id, sph, cyl, axis, quantity, unit_price, line_total)
+              VALUES (${orderId}, 'product', ${i.productId}, NULL, NULL, NULL, ${i.quantity}, ${i.unitPrice}, ${lineTotal})
+            `;
+          }
+        }
 
         if (status === 'confirmed') {
           for (const item of cart) {
             if ('lensProductId' in item) {
               const currentQty = stockMap.get(`${item.lensProductId}:${item.sph}`) || 0;
               const newQty = Math.max(0, currentQty - item.quantity);
-              await supabase
-                .from('lens_stock')
-                .update({ stock_qty: newQty })
-                .eq('lens_product_id', item.lensProductId)
-                .eq('sph', item.sph);
+              await sql`
+                UPDATE lens_stock SET stock_qty = ${newQty} 
+                WHERE lens_product_id = ${item.lensProductId} AND sph = ${item.sph}
+              `;
             } else if ('productId' in item) {
               const targetProduct = products.find((p) => p.id === item.productId);
               if (targetProduct) {
                 const currentConsumed = targetProduct.consumed_stock || 0;
-                await supabase
-                  .from('products')
-                  .update({ consumed_stock: currentConsumed })
-                  .eq('id', item.productId);
+                await sql`
+                  UPDATE products SET consumed_stock = ${currentConsumed} WHERE id = ${item.productId}
+                `;
               }
             }
           }
 
           if (paymentMethod === 'credit') {
-            const newBalance = selectedClient.outstanding_balance + total;
-            const { error: ue } = await supabase
-              .from('clients')
-              .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
-              .eq('id', selectedClient.id);
-
-            if (ue) throw ue;
+            const newBalance = Math.round((selectedClient.outstanding_balance + total) * 100) / 100;
+            await sql`
+              UPDATE clients SET outstanding_balance = ${newBalance} WHERE id = ${selectedClient.id}
+            `;
           }
 
           await loadData();
@@ -527,14 +487,13 @@ export default function App() {
         let invoiceNumber: string | undefined;
         if (status === 'confirmed') {
           invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
-          await supabase.from('invoices').insert({
-            order_id: order.id,
-            invoice_number: invoiceNumber,
-          });
+          await sql`
+            INSERT INTO invoices (order_id, invoice_number) VALUES (${orderId}, ${invoiceNumber})
+          `;
         }
 
         setShowCheckoutModal(false);
-        return { orderId: order.id, invoiceNumber };
+        return { orderId, invoiceNumber };
       } catch (e) {
         setSaveMsg({ type: 'err', text: e instanceof Error ? e.message : 'فشل حفظ الطلب' });
         return null;
@@ -564,28 +523,23 @@ export default function App() {
 
     try {
       const updatedBalance = Math.max(0, selectedReturnClient.outstanding_balance - calculatedReturnTotal);
-      const { error: clientError } = await supabase
-        .from('clients')
-        .update({ outstanding_balance: updatedBalance })
-        .eq('id', selectedReturnClient.id);
-
-      if (clientError) throw clientError;
+      await sql`
+        UPDATE clients SET outstanding_balance = ${updatedBalance} WHERE id = ${selectedReturnClient.id}
+      `;
 
       if (returnItemType === 'lens' && selectedReturnLensId) {
         const currentQty = stockMap.get(`${selectedReturnLensId}:${returnSph}`) || 0;
-        await supabase
-          .from('lens_stock')
-          .update({ stock_qty: currentQty + returnQty })
-          .eq('lens_product_id', selectedReturnLensId)
-          .eq('sph', returnSph);
+        await sql`
+          UPDATE lens_stock SET stock_qty = ${currentQty + returnQty} 
+          WHERE lens_product_id = ${selectedReturnLensId} AND sph = ${returnSph}
+        `;
       } else if (returnItemType === 'product' && selectedReturnProductId) {
         const p = products.find((prod) => prod.id === selectedReturnProductId);
         if (p) {
           const newConsumed = Math.max(0, (p.consumed_stock || 0) - returnQty);
-          await supabase
-            .from('products')
-            .update({ consumed_stock: newConsumed })
-            .eq('id', selectedReturnProductId);
+          await sql`
+            UPDATE products SET consumed_stock = ${newConsumed} WHERE id = ${selectedReturnProductId}
+          `;
         }
       }
 
@@ -677,7 +631,6 @@ export default function App() {
     clearCart();
   }
 
-  // 🖨️ تعديل دالة الطباعة لإبراز اسم العميل بوضوح
   function printInvoice(data: InvoiceData) {
     const win = window.open('', '_blank', 'width=800,height=600');
     if (!win) return;
@@ -744,7 +697,6 @@ export default function App() {
     </div>
   </div>
 
-  <!-- قسم اسم العميل والبيانات -->
   <div class="client-card">
     <div>
       <span style="font-size: 12px; color: #64748b; display: block;">اسم العميل:</span>
@@ -796,17 +748,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800" dir="rtl">
-      {/* القائمة الجانبية */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
       />
 
-      {/* المحتوى الرئيسي للمنصة */}
       <main className="md:pr-[220px] transition-all p-4 md:p-6 min-h-screen">
-
-        {/* Tab 0: الشاشة الرئيسية */}
         {activeTab === 'home' && (
           <DashboardHome
             orders={orders}
@@ -818,7 +766,6 @@ export default function App() {
           />
         )}
 
-        {/* Tab 1: إنشاء طلب جديد */}
         {activeTab === 'new-order' && (
           <>
             <ClientSelector
@@ -898,7 +845,6 @@ export default function App() {
           </>
         )}
 
-        {/* Tab 2: جرد المخزون */}
         {activeTab === 'inventory' && (
           <ProductsInventory
             lensProducts={lensProducts}
@@ -909,12 +855,10 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: سجل الطلبات (تمرير دالة الطباعة وعرض الفاتورة) */}
         {activeTab === 'orders-history' && (
           <OrdersHistory onPrintInvoice={printInvoice} />
         )}
 
-        {/* Tab 4: دليل العملاء والمرتجعات */}
         {activeTab === 'clients' && (
           <div className="space-y-6">
             {selectedReturnClient && (
@@ -1083,7 +1027,6 @@ export default function App() {
         )}
       </main>
 
-      {/* النافذة المنبثقة Modal */}
       {showCheckoutModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">

@@ -1,14 +1,13 @@
-// ── إعدادات الاتصال بـ Neon عبر HTTP API المباشر (متوافق 100% مع المتصفح و Render) ──
+// ── إعدادات الاتصال بـ Neon عبر HTTP API المباشر ──
 const databaseUrl = import.meta.env.VITE_NEON_DATABASE_URL as string;
 
-// دالة تنفيذ استعلامات SQL المباشرة بدون أي حزم خارجية معقدة
+// دالة تنفيذ استعلامات SQL المباشرة لـ Neon
 export async function sql(strings: TemplateStringsArray, ...values: any[]) {
   if (!databaseUrl) {
-    console.error('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة .env');
+    console.error('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة');
     return [];
   }
 
-  // دمج الاستعلام والمحليّات
   let query = strings[0];
   for (let i = 0; i < values.length; i++) {
     const val = values[i];
@@ -17,11 +16,10 @@ export async function sql(strings: TemplateStringsArray, ...values: any[]) {
   }
 
   try {
-    // تحويل رابط الاتصال إلى رابط HTTP API
     const match = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^/]+)\/(.+)/);
     if (!match) throw new Error('رابط قاعدة البيانات غير صحيح');
 
-    const [, user, password, host, dbName] = match;
+    const [, , password, host] = match;
     const httpUrl = `https://${host}/sql`;
 
     const response = await fetch(httpUrl, {
@@ -34,15 +32,27 @@ export async function sql(strings: TemplateStringsArray, ...values: any[]) {
     });
 
     const result = await response.json();
-    if (result.error) {
-      throw new Error(result.error);
-    }
+    if (result.error) throw new Error(result.error);
     return result.rows || [];
   } catch (err) {
     console.error('خطأ في استعلام SQL:', err);
     throw err;
   }
 }
+
+// ── كائن التوافق الصوري لمنع أخطاء البناء في المكونات القديمة ──
+export const supabase = {
+  auth: {
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+  },
+  from: (table: string) => ({
+    select: () => Promise.resolve({ data: [], error: null }),
+    insert: () => Promise.resolve({ data: [], error: null }),
+    update: () => Promise.resolve({ data: [], error: null }),
+    delete: () => Promise.resolve({ data: [], error: null }),
+  }),
+};
 
 // ── Currency helper ──
 export const CURRENCY_SYMBOL = '₪';

@@ -2,17 +2,29 @@
 const databaseUrl = import.meta.env.VITE_NEON_DATABASE_URL as string;
 
 // دالة تنفيذ استعلامات SQL المباشرة لـ Neon
-export async function sql(strings: TemplateStringsArray, ...values: any[]) {
+export async function sql(strings: TemplateStringsArray | string, ...values: any[]) {
   if (!databaseUrl) {
     console.error('تنبيه: لم يتم العثور على VITE_NEON_DATABASE_URL في ملف البيئة');
     return [];
   }
 
-  let query = strings[0];
-  for (let i = 0; i < values.length; i++) {
-    const val = values[i];
-    const formattedVal = typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
-    query += formattedVal + strings[i + 1];
+  let query = '';
+  if (typeof strings === 'string') {
+    query = strings;
+  } else {
+    query = strings[0];
+    for (let i = 0; i < values.length; i++) {
+      const val = values[i];
+      const formattedVal =
+        val === null || val === undefined
+          ? 'NULL'
+          : typeof val === 'string'
+          ? `'${val.replace(/'/g, "''")}'`
+          : typeof val === 'boolean'
+          ? val ? 'TRUE' : 'FALSE'
+          : val;
+      query += formattedVal + strings[i + 1];
+    }
   }
 
   try {
@@ -40,18 +52,104 @@ export async function sql(strings: TemplateStringsArray, ...values: any[]) {
   }
 }
 
-// ── كائن التوافق الصوري لمنع أخطاء البناء في المكونات القديمة ──
+// ── محاكي Supabase الحقيقي المربوط بـ Neon DB ──
 export const supabase = {
   auth: {
     getSession: async () => ({ data: { session: null }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
   },
-  from: (table: string) => ({
-    select: () => Promise.resolve({ data: [], error: null }),
-    insert: () => Promise.resolve({ data: [], error: null }),
-    update: () => Promise.resolve({ data: [], error: null }),
-    delete: () => Promise.resolve({ data: [], error: null }),
-  }),
+  from: (table: string) => {
+    return {
+      // 1. القراءة من Neon DB
+      select: async (columns: string = '*') => {
+        try {
+          const rows = await sql(`SELECT ${columns === '*' ? '*' : columns} FROM ${table} ORDER BY id DESC;`);
+          return { data: rows, error: null };
+        } catch (error: any) {
+          return { data: null, error };
+        }
+      },
+
+      // 2. الإدخال في Neon DB
+      insert: async (records: Record<string, any> | Record<string, any>[]) => {
+        try {
+          const items = Array.isArray(records) ? records : [records];
+          if (items.length === 0) return { data: [], error: null };
+
+          const keys = Object.keys(items[0]);
+          const cols = keys.join(', ');
+
+          const insertedRows = [];
+          for (const item of items) {
+            const vals = keys.map((k) => {
+              const val = item[k];
+              if (val === null || val === undefined) return 'NULL';
+              if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+              if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+              if (typeof val === 'object') return `'${JSON.stringify(val)}'`;
+              return val;
+            }).join(', ');
+
+            const query = `INSERT INTO ${table} (${cols}) VALUES (${vals}) RETURNING *;`;
+            const res = await sql(query);
+            if (res && res[0]) insertedRows.push(res[0]);
+          }
+
+          return { data: insertedRows, error: null };
+        } catch (error: any) {
+          console.error(`خطأ أثناء الإدخال في جدول ${table}:`, error);
+          return { data: null, error };
+        }
+      },
+
+      // 3. التحديث في Neon DB
+      update: async (data: Record<string, any>) => {
+        return {
+          eq: async (column: string, value: any) => {
+            try {
+              const setClause = Object.keys(data)
+                .map((k) => {
+                  const val = data[k];
+                  const formattedVal =
+                    val === null
+                      ? 'NULL'
+                      : typeof val === 'string'
+                      ? `'${val.replace(/'/g, "''")}'`
+                      : typeof val === 'boolean'
+                      ? val ? 'TRUE' : 'FALSE'
+                      : val;
+                  return `${k} = ${formattedVal}`;
+                })
+                .join(', ');
+
+              const formattedEqVal = typeof value === 'string' ? `'${value}'` : value;
+              const query = `UPDATE ${table} SET ${setClause} WHERE ${column} = ${formattedEqVal} RETURNING *;`;
+              const res = await sql(query);
+              return { data: res, error: null };
+            } catch (error: any) {
+              return { data: null, error };
+            }
+          },
+        };
+      },
+
+      // 4. الحذف من Neon DB
+      delete: async () => {
+        return {
+          eq: async (column: string, value: any) => {
+            try {
+              const formattedVal = typeof value === 'string' ? `'${value}'` : value;
+              const query = `DELETE FROM ${table} WHERE ${column} = ${formattedVal} RETURNING *;`;
+              const res = await sql(query);
+              return { data: res, error: null };
+            } catch (error: any) {
+              return { data: null, error };
+            }
+          },
+        };
+      },
+    };
+  },
 };
 
 // ── Currency helper ──

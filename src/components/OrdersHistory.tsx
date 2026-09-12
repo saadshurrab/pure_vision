@@ -24,6 +24,7 @@ interface OrdersHistoryProps {
 export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [confirmingDraftId, setConfirmingDraftId] = useState<string | null>(null);
 
@@ -38,25 +39,37 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
 
   async function fetchOrders() {
     setLoading(true);
-    // جلب الطلبات مع بيانات العميل والأصناف ورقم الفاتورة
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        clients(*),
-        order_items(
-          *,
-          lens_products(brand, bc, dia),
-          products(name, category)
-        ),
-        invoices(invoice_number)
-      `)
-      .order('created_at', { ascending: false });
+    setError(null);
 
-    if (!error && data) {
-      setOrders(data as unknown as OrderRecord[]);
+    try {
+      // جلب الطلبات مع بيانات العميل والأصناف ورقم الفاتورة
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          clients(*),
+          order_items(
+            *,
+            lens_products(brand, bc, dia),
+            products(name, category)
+          ),
+          invoices(invoice_number)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (data) {
+        setOrders(data as unknown as OrderRecord[]);
+      }
+    } catch (err: any) {
+      console.error('حدث خطأ أثناء جلب البيانات المالية والطلبات:', err);
+      setError(err?.message || 'حدث خطأ غير متوقع أثناء الاتصال بقاعدة البيانات');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // معالجة فتح وطباعة الفاتورة للطلب المحدد
@@ -214,6 +227,26 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
       <div className="min-h-[350px] flex flex-col items-center justify-center bg-white border border-slate-300 rounded-sm p-8 shadow-sm">
         <div className="w-8 h-8 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin mb-3" />
         <p className="text-slate-600 font-medium text-xs tracking-wide">جاري تحميل البيانات المالية...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[250px] flex flex-col items-center justify-center bg-white border border-rose-200 rounded-sm p-6 shadow-sm text-center" dir="rtl">
+        <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center mb-3 text-rose-600">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h3 className="text-sm font-bold text-slate-800 mb-1">تعذر تحميل البيانات المالية</h3>
+        <p className="text-xs text-rose-600 font-mono mb-4 max-w-md">{error}</p>
+        <button
+          onClick={fetchOrders}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-sm text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-xs"
+        >
+          إعادة المحاولة
+        </button>
       </div>
     );
   }

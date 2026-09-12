@@ -113,7 +113,7 @@ export function ClientsList({ clients, onClientAdded }: Props) {
     }
   }
 
-  // تسجيل عملية تسديد (واصل)
+  // تسجيل عملية تسديد (واصل) مع جلب أحدث البيانات لتجنب تعارض الأرصدة
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!showPayModal || numericPayAmount <= 0) {
@@ -144,14 +144,12 @@ export function ClientsList({ clients, onClientAdded }: Props) {
       const { error: err } = await supabase
         .from('clients')
         .update({
-          outstanding_balance: Math.round(newBalance * 100) / 100,
-          total_paid: Math.round(newTotalPaid * 100) / 100,
+          outstanding_balance: Number(newBalance.toFixed(2)),
+          total_paid: Number(newTotalPaid.toFixed(2)),
         })
         .eq('id', showPayModal.id);
 
       if (err) throw err;
-
-      // (اختياري) يمكنك إضافة إدراج سجل السداد هنا في جدول client_payments إذا كان متوفراً لديك
 
       setShowPayModal(null);
       setPayAmount('');

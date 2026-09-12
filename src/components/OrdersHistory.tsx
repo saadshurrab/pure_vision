@@ -1,5 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase, formatILS, type Client, type InvoiceData } from '@/lib/supabase';
+
+interface Client {
+  id: string;
+  name: string;
+  phone?: string;
+  outstanding_balance?: number;
+}
 
 interface OrderRecord {
   id: string;
@@ -18,7 +24,7 @@ interface OrderRecord {
 }
 
 interface OrdersHistoryProps {
-  onPrintInvoice?: (invoiceData: InvoiceData) => void;
+  onPrintInvoice?: (invoiceData: any) => void;
 }
 
 export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
@@ -37,42 +43,27 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
     fetchOrders();
   }, []);
 
+  // جلب البيانات من API Neon الخاصة بالموقع
   async function fetchOrders() {
     setLoading(true);
     setError(null);
 
     try {
-      // جلب الطلبات مع بيانات العميل والأصناف ورقم الفاتورة
-      const { data, error: fetchError } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          clients(*),
-          order_items(
-            *,
-            lens_products(brand, bc, dia),
-            products(name, category)
-          ),
-          invoices(invoice_number)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        throw fetchError;
+      const res = await fetch('/api/orders');
+      if (!res.ok) {
+        throw new Error(`خطأ في جلب البيانات من الخادم (${res.status})`);
       }
-
-      if (data) {
-        setOrders(data as unknown as OrderRecord[]);
-      }
+      const data = await res.json();
+      setOrders(data || []);
     } catch (err: any) {
-      console.error('حدث خطأ أثناء جلب البيانات المالية والطلبات:', err);
-      setError(err?.message || 'حدث خطأ غير متوقع أثناء الاتصال بقاعدة البيانات');
+      console.error('حدث خطأ أثناء جلب الطلبات من Neon:', err);
+      setError(err?.message || 'تعذر الاتصال بقاعدة البيانات');
     } finally {
       setLoading(false);
     }
   }
 
-  // معالجة فتح وطباعة الفاتورة للطلب المحدد
+  // معاينة وطباعة الفاتورة
   const handlePrint = (order: OrderRecord) => {
     if (!onPrintInvoice) return;
 
@@ -80,9 +71,9 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
       if (item.item_type === 'lens' || item.lens_product_id) {
         return {
           lensProductId: item.lens_product_id,
-          brand: item.lens_products?.brand || 'عدسة',
-          bc: item.lens_products?.bc || '',
-          dia: item.lens_products?.dia || '',
+          brand: item.lens_products?.brand || item.brand || 'عدسة',
+          bc: item.lens_products?.bc || item.bc || '',
+          dia: item.lens_products?.dia || item.dia || '',
           unitPrice: item.unit_price,
           sph: item.sph,
           cyl: item.cyl,
@@ -92,7 +83,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
       }
       return {
         productId: item.product_id,
-        name: item.products?.name || 'منتج',
+        name: item.products?.name || item.name || 'منتج',
         unitPrice: item.unit_price,
         quantity: item.quantity,
       };
@@ -103,7 +94,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
         ? order.invoices[0].invoice_number
         : `INV-${order.id.slice(0, 8).toUpperCase()}`;
 
-    const invoiceData: InvoiceData = {
+    const invoiceData = {
       invoiceNumber,
       orderId: order.id,
       client: order.clients || { name: 'عميل نقدي' },
@@ -126,37 +117,19 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
     setPayingOrderId(order.id);
 
     try {
-      // 1. تحديث طريقة الدفع للطلب لتصبح نقدي (كاش)
-      const { error: orderErr } = await supabase
-        .from('orders')
-        .update({ payment_method: 'cash' })
-        .eq('id', order.id);
+      const res = await fetch(`/api/orders/${order.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: order.client_id, amount: order.total }),
+      });
 
-      if (orderErr) throw orderErr;
-
-      // 2. جلب أحدث رصيد للعميل مباشرة من القاعدة لتفادي أي تضارب
-      const { data: freshClient, error: fetchErr } = await supabase
-        .from('clients')
-        .select('outstanding_balance')
-        .eq('id', order.client_id)
-        .single();
-
-      if (fetchErr) throw fetchErr;
-
-      const currentBalance = freshClient?.outstanding_balance ?? order.clients.outstanding_balance ?? 0;
-      const newBalance = Math.max(0, currentBalance - order.total);
-
-      // 3. خصم مبلغ الفاتورة من دين العميل في جدول العملاء
-      const { error: clientErr } = await supabase
-        .from('clients')
-        .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
-        .eq('id', order.client_id);
-
-      if (clientErr) throw clientErr;
+      if (!res.ok) {
+        throw new Error('فشل تسديد الفاتورة');
+      }
 
       await fetchOrders();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'حدث خطأ أثناء تسديد الفاتورة');
+    } catch (e: any) {
+      alert(e?.message || 'حدث خطأ أثناء تسديد الفاتورة');
     } finally {
       setPayingOrderId(null);
     }
@@ -168,37 +141,23 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
     setConfirmingDraftId(order.id);
 
     try {
-      const { error: orderErr } = await supabase
-        .from('orders')
-        .update({ status: 'confirmed' })
-        .eq('id', order.id);
+      const res = await fetch(`/api/orders/${order.id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: order.payment_method,
+          clientId: order.client_id,
+          total: order.total,
+        }),
+      });
 
-      if (orderErr) throw orderErr;
-
-      // إذا كان الدفع أجلاً (دين)، يُضاف إجمالي الطلب إلى حساب العميل
-      if (order.payment_method === 'credit') {
-        const { data: freshClient, error: fetchErr } = await supabase
-          .from('clients')
-          .select('outstanding_balance')
-          .eq('id', order.client_id)
-          .single();
-
-        if (fetchErr) throw fetchErr;
-
-        const currentBalance = freshClient?.outstanding_balance ?? order.clients.outstanding_balance ?? 0;
-        const newBalance = currentBalance + order.total;
-
-        const { error: clientErr } = await supabase
-          .from('clients')
-          .update({ outstanding_balance: Math.round(newBalance * 100) / 100 })
-          .eq('id', order.client_id);
-
-        if (clientErr) throw clientErr;
+      if (!res.ok) {
+        throw new Error('فشل تأكيد المسودة');
       }
 
       await fetchOrders();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'حدث خطأ أثناء تأكيد المسودة');
+    } catch (e: any) {
+      alert(e?.message || 'حدث خطأ أثناء تأكيد المسودة');
     } finally {
       setConfirmingDraftId(null);
     }
@@ -222,11 +181,13 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
     return { totalSales, pendingCreditCount, pendingCreditAmount, draftsCount, totalCount: orders.length };
   }, [orders]);
 
+  const formatCurrency = (val: number) => `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ₪`;
+
   if (loading) {
     return (
       <div className="min-h-[350px] flex flex-col items-center justify-center bg-white border border-slate-300 rounded-sm p-8 shadow-sm">
         <div className="w-8 h-8 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin mb-3" />
-        <p className="text-slate-600 font-medium text-xs tracking-wide">جاري تحميل البيانات المالية...</p>
+        <p className="text-slate-600 font-medium text-xs tracking-wide">جاري تحميل البيانات المالية من قاعدة البيانات...</p>
       </div>
     );
   }
@@ -253,7 +214,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
 
   return (
     <div className="space-y-5 font-sans" dir="rtl">
-      {/* 1️⃣ لوحة الملخص المالي الكلاسيكية */}
+      {/* 1️⃣ لوحة الملخص المالي */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-emerald-700">
           <div className="flex items-center justify-between">
@@ -262,7 +223,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 12v-2m0-10V4m0 16v-2" />
             </svg>
           </div>
-          <p className="text-lg font-bold text-slate-900 mt-2 font-mono dir-ltr text-right">{formatILS(stats.totalSales)}</p>
+          <p className="text-lg font-bold text-slate-900 mt-2 font-mono dir-ltr text-right">{formatCurrency(stats.totalSales)}</p>
         </div>
 
         <div className="bg-white p-4 border border-slate-300 rounded-sm shadow-xs border-r-4 border-r-rose-600">
@@ -273,7 +234,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
             </svg>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <p className="text-lg font-bold text-rose-700 font-mono dir-ltr">{formatILS(stats.pendingCreditAmount)}</p>
+            <p className="text-lg font-bold text-rose-700 font-mono dir-ltr">{formatCurrency(stats.pendingCreditAmount)}</p>
             <span className="text-xs font-medium text-slate-500">({stats.pendingCreditCount} فاتورة)</span>
           </div>
         </div>
@@ -299,9 +260,8 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
         </div>
       </div>
 
-      {/* 2️⃣ الحاوية الرئيسية للبيانات والأدوات */}
+      {/* 2️⃣ الحاوية الرئيسية للبيانات والفلترة */}
       <div className="bg-white border border-slate-300 rounded-sm shadow-xs">
-        {/* الترويسة وأدوات التحكم الرسمية */}
         <div className="p-4 bg-slate-50 border-b border-slate-300 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -312,7 +272,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
             </div>
             <button
               onClick={fetchOrders}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-100 transition-colors active:bg-slate-200"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-100 transition-colors"
             >
               <svg className="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -321,7 +281,6 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
             </button>
           </div>
 
-          {/* شريط الفلترة المتقدم */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
             <div className="relative">
               <input
@@ -329,7 +288,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                 placeholder="البحث باسم العميل..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-8 pl-3 py-1.5 text-xs bg-white border border-slate-300 rounded-sm focus:outline-none focus:border-slate-600 font-medium text-slate-800 placeholder-slate-400"
+                className="w-full pr-8 pl-3 py-1.5 text-xs bg-white border border-slate-300 rounded-sm focus:outline-none focus:border-slate-600 font-medium text-slate-800"
               />
               <svg className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -359,7 +318,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
           </div>
         </div>
 
-        {/* 3️⃣ جدول البيانات الرسمية */}
+        {/* 3️⃣ جدول البيانات */}
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">
             <thead>
@@ -371,7 +330,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                 <th className="py-2.5 px-3 border-l border-slate-700">الإجمالي</th>
                 <th className="py-2.5 px-3 border-l border-slate-700">الحالة</th>
                 <th className="py-2.5 px-3 border-l border-slate-700 text-center">الفاتورة</th>
-                <th className="py-2.5 px-3 text-center">حالة التحصيل / الإجراء</th>
+                <th className="py-2.5 px-3 text-center">الإجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs text-slate-800">
@@ -389,25 +348,18 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                         isDraft ? 'bg-amber-50/30' : isCredit ? 'bg-rose-50/20' : ''
                       }`}
                     >
-                      {/* رقم الطلب */}
                       <td className="py-2.5 px-3 font-mono text-[11px] font-semibold text-slate-600 border-l border-slate-200">
                         #{o.id.slice(0, 8)}
                       </td>
-
-                      {/* العميل */}
                       <td className="py-2.5 px-3 font-bold text-slate-900 border-l border-slate-200">
                         {o.clients?.name || <span className="text-slate-400 font-normal">عميل محذوف</span>}
                       </td>
-
-                      {/* التاريخ والوقت */}
                       <td className="py-2.5 px-3 text-slate-600 border-l border-slate-200 font-mono text-[11px]">
                         {new Date(o.created_at).toLocaleDateString('en-GB')}{' '}
                         <span className="text-slate-400">
                           {new Date(o.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </td>
-
-                      {/* طريقة الدفع */}
                       <td className="py-2.5 px-3 border-l border-slate-200">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-bold border ${
@@ -425,13 +377,9 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                             : 'تحويل بنكي'}
                         </span>
                       </td>
-
-                      {/* المبلغ الإجمالي */}
                       <td className="py-2.5 px-3 font-bold font-mono text-slate-900 border-l border-slate-200">
-                        {formatILS(o.total)}
+                        {formatCurrency(o.total)}
                       </td>
-
-                      {/* حالة الطلب */}
                       <td className="py-2.5 px-3 border-l border-slate-200">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-bold border ${
@@ -443,8 +391,6 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                           {isDraft ? 'مسودة' : 'مؤكد'}
                         </span>
                       </td>
-
-                      {/* عمود الفاتورة / العرض والطباعة */}
                       <td className="py-2.5 px-3 border-l border-slate-200 text-center">
                         <button
                           onClick={() => handlePrint(o)}
@@ -457,8 +403,6 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                           الفاتورة
                         </button>
                       </td>
-
-                      {/* حالة التحصيل والإجراء */}
                       <td className="py-2.5 px-3 text-center">
                         {isDraft ? (
                           <button
@@ -466,44 +410,23 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
                             disabled={isConfirming}
                             className="inline-flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white font-semibold px-2.5 py-1 rounded-sm text-[11px] transition-colors border border-slate-900 shadow-xs mx-auto"
                           >
-                            {isConfirming ? (
-                              'جاري التأكيد...'
-                            ) : (
-                              <>
-                                <svg className="w-3 h-3 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                                تأكيد المسودة
-                              </>
-                            )}
+                            {isConfirming ? 'جاري التأكيد...' : 'تأكيد المسودة'}
                           </button>
                         ) : isCredit ? (
                           <div className="flex items-center justify-center gap-2">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-xs border border-rose-200">
-                              غير مسدد (آجل)
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-xs border border-rose-200">
+                              غير مسدد
                             </span>
                             <button
                               onClick={() => handleMarkAsPaid(o)}
                               disabled={isPaying}
                               className="inline-flex items-center justify-center gap-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-400 text-white font-semibold px-2.5 py-1 rounded-sm text-[11px] transition-colors border border-emerald-800 shadow-xs"
                             >
-                              {isPaying ? (
-                                'جاري التحصيل...'
-                              ) : (
-                                <>
-                                  <svg className="w-3 h-3 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                                  </svg>
-                                  تحصيل
-                                </>
-                              )}
+                              {isPaying ? 'تحصيل...' : 'تحصيل'}
                             </button>
                           </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-xs border border-emerald-200">
-                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
                             مسدد بالكامل
                           </span>
                         )}
@@ -514,7 +437,7 @@ export function OrdersHistory({ onPrintInvoice }: OrdersHistoryProps) {
               ) : (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-slate-500 font-medium text-xs">
-                    لا توجد سجلات مالية أو طلبات مطابقة للفلترة المحددة.
+                    لا توجد سجلات مالية أو طلبات مطابقة.
                   </td>
                 </tr>
               )}
